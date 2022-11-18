@@ -1,8 +1,10 @@
-import time
+import itertools
 import os
+import time
 from os.path import join as path_join
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
@@ -11,12 +13,12 @@ from skimage.measure import label, regionprops
 from sklearn.metrics import roc_auc_score, auc, precision_recall_curve
 from torch.utils.tensorboard import SummaryWriter
 
-import utils
 from modules.ad_module import STLNet_AD
 from config import get_args
 from datasets import load_dataset
 import numpy as np
 import visualize
+import utils
 
 project_dir = os.path.abspath("../")
 
@@ -60,14 +62,12 @@ def main(c):
         optimizer = optim.SGD(net.parameters(), lr=c.lr, weight_decay=c.weight_decay, momentum=0.9, nesterov=True)
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda ep: c.sched_param[0] ** ep)
 
-        det_roc_obs = Score_Observer('DET_AUROC')
-        seg_roc_obs = Score_Observer('SEG_AUROC')
-        seg_pro_obs = Score_Observer('SEG_AUPRO')
+        det_roc_obs = ScoreObserver('DET_AUROC', c.class_name, c.epochs, c.epochs * 2, threshold=3)
+        seg_roc_obs = ScoreObserver('SEG_AUROC', c.class_name, c.epochs, c.epochs * 2, threshold=3)
+        seg_pro_obs = ScoreObserver('SEG_AUPRO', c.class_name, c.epochs, c.epochs * 2, threshold=3)
 
-        if c.action_type == 'norm-test':
-            c.epochs = 1
+        for epoch in itertools.count():
 
-        for epoch in range(c.epochs):
             net = net.train()
             loss_mean = list()
             for n_batch, data in enumerate(train_loader):
@@ -82,14 +82,13 @@ def main(c):
                 loss.backward()
                 optimizer.step()
                 loss_mean.append(loss.detach())
-                break
             scheduler.step()
 
             loss_mean = torch.tensor(loss_mean, dtype=torch.double).mean()
 
             board.add_scalar(f"{c.class_name}/train_loss_mean", loss_mean, epoch)
 
-            if epoch % 50 == 0:
+            if epoch % 20 == 0:
                 net = net.eval()
                 test_image_list = list()
                 gt_label_list = list()
@@ -114,11 +113,11 @@ def main(c):
                 score_labels = np.max(score_maps, axis=(1, 2))
                 gt_labels = np.asarray(gt_label_list, dtype=bool)
                 det_roc_auc = roc_auc_score(gt_labels, score_labels)
-                _ = det_roc_obs.update(100.0 * det_roc_auc, epoch)
+                got_best_det = det_roc_obs.update(100.0 * det_roc_auc, epoch, net)
 
                 gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
                 seg_roc_auc = roc_auc_score(gt_mask.flatten(), score_maps.flatten())
-                _ = seg_roc_obs.update(100.0 * seg_roc_auc, epoch)
+                got_best_seg = seg_roc_obs.update(100.0 * seg_roc_auc, epoch, net)
 
                 if c.pro:
                     """
@@ -190,11 +189,15 @@ def main(c):
                     fprs_selected = rescale(fprs_selected)  # rescale fpr [0,0.3] -> [0, 1]
                     pros_mean_selected = pros_mean[idx]
                     seg_pro_auc = auc(fprs_selected, pros_mean_selected)
-                    _ = seg_pro_obs.update(100.0 * seg_pro_auc, epoch)
+                    _ = seg_pro_obs.update(100.0 * seg_pro_auc, epoch, net)
                     #
 
                     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
                     # export visualuzations
+
+                if got_best_det and got_best_seg:
+                    break
+
         if c.viz:
             precision, recall, thresholds = precision_recall_curve(gt_labels, score_labels)
             a = 2 * precision * recall
@@ -588,33 +591,45 @@ def t2np(tensor):
     return tensor.cpu().data.numpy() if tensor is not None else None
 
 
-class Score_Observer:
-    def __init__(self, name):
+class ScoreObserver:
+    def __init__(self, name, cls, min_train_epoch, max_train_epoch, threshold=1):
         self.name = name
+        self.cls = cls
+        self.threshold = threshold
+        self.min_train_epoch = min_train_epoch
+        self.max_train_epoch = max_train_epoch
+        self.update_count = threshold
+
+        self.last_epoch = 0
+        self.last_score = 0.0
+
         self.max_epoch = 0
         self.max_score = 0.0
-        self.last = 0.0
 
-    def update(self, score, epoch, print_score=True):
-        self.epoch_last = epoch
-        self.last = score
-        save_weights = False
+    def update(self, score, epoch, module):
+        """
+        update result score
+        return True if max score haven't been changed after threshold times
+        """
+
+        print(f'{time.ctime()} update: {self.name}/{self.cls}, epoch: {epoch}/{self.max_epoch}, score: {round(score, 2)}/{round(self.max_score, 2)}')
+
+        self.last_epoch = epoch
+        self.last_score = score
         if epoch == 0 or score > self.max_score:
             self.max_score = score
             self.max_epoch = epoch
-            save_weights = True
-        if print_score:
-            self.print_score()
 
-        return save_weights
+            torch.save(module.state_dict(), os.path.join(utils.get_dir(project_dir, 'output', 'modules'), f'{self.cls}.pth'))
 
-    def print_score(self):
-        print('{:s}: \t last: {:.2f} \t max: {:.2f} \t epoch_max: {:d}'.format(self.name, self.last, self.max_score, self.max_epoch))
+            self.update_count = self.threshold
+        elif epoch > self.min_train_epoch:
+            self.update_count -= 1
 
-        with open(os.path.join(utils.mkdir(path_join(project_dir, 'output', 'result', c.class_name)), 'result_train1.txt'), 'w') as file:
-            file.write('epoch_last: {:d} \n'.format(self.epoch_last))
-            file.write('{:s}: \t last: {:.2f} \t max: {:.2f} \t epoch_max: {:d} \n'.format(
-                self.name, self.last, self.max_score, self.max_epoch))  # 往打开的文件里写入批次等信息
+        if self.update_count == 0 or epoch == self.max_epoch or self.max_score == 100.:
+            self.update_count = 1
+            return True
+        return False
 
 
 def rescale(x):

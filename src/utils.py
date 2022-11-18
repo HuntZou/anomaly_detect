@@ -76,7 +76,8 @@ def warmup_learning_rate(c, epoch, batch_id, total_batches, optimizer):
     return lrate
 
 
-def mkdir(folder):
+def get_dir(*folders):
+    folder = os.path.join(*folders)
     if not os.path.exists(folder):
         pathlib.Path(folder).mkdir(parents=True, exist_ok=True)
         print(f"create dir: {folder}")

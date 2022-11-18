@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
-from modules.stl_net import STL
+from stl_net import STL
 
 
 class ResNet(nn.Module):

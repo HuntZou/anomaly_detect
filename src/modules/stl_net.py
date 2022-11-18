@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from modules.lbp_module import LBPModule
+from lbp_module import LBPModule
 
 
 class ConvBNReLU(nn.Module):
