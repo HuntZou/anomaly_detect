@@ -196,6 +196,7 @@ def main(c):
                     # export visualuzations
 
                 if got_best_det and got_best_seg:
+                    print(f'got_best_det and got_best_seg got best, move to next class')
                     break
 
         if c.viz:
@@ -626,7 +627,7 @@ class ScoreObserver:
         elif epoch > self.min_train_epoch:
             self.update_count -= 1
 
-        if self.update_count == 0 or epoch == self.max_epoch or self.max_score == 100.:
+        if self.update_count <= 0 or epoch >= self.max_train_epoch or self.max_score == 100.:
             self.update_count = 1
             return True
         return False

@@ -7,7 +7,7 @@ import numpy as np
 from skimage import morphology
 from skimage.segmentation import mark_boundaries
 
-OUT_DIR = './viz/'
+OUT_DIR = '../output/viz/'
 
 norm = matplotlib.colors.Normalize(vmin=0.0, vmax=255.0)
 cm = 1 / 2.54
@@ -36,13 +36,13 @@ def export_hist(c, gts, scores, threshold):
              histtype='barstacked')
     plt.hist(Y[Y_label == 0], 20, density=True, color=['g'], label=['TYP'], alpha=0.75,
              histtype='barstacked')
-    image_file = os.path.join(image_dirs, 'hist_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
+    image_file = os.path.join(image_dirs, 'hist_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H_%M_%S") + '.svg')
     fig.savefig(image_file, dpi=dpi, format='svg', bbox_inches='tight', pad_inches=0.0)
     plt.close()
 
 
 def export_groundtruth(c, test_img, gts):
-    image_dirs = os.path.join(OUT_DIR, c.model, c.class_name, 'gt_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
+    image_dirs = os.path.join(OUT_DIR, c.model, c.class_name, 'gt_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H_%M_%S"))
     # images
     if not os.path.isdir(image_dirs):
         print('Exporting grountruth...')
@@ -63,13 +63,13 @@ def export_groundtruth(c, test_img, gts):
             ax.set_axis_off()
             fig.add_axes(ax)
             ax.imshow(gt_img)
-            image_file = os.path.join(image_dirs, '{:08d}'.format(i))
+            image_file = os.path.join(image_dirs, '{:08d}.svg'.format(i))
             fig.savefig(image_file, dpi=dpi, format='svg', bbox_inches='tight', pad_inches=0.0)
             plt.close()
 
 
 def export_scores(c, test_img, scores, threshold):
-    image_dirs = os.path.join(OUT_DIR, c.model, c.class_name, 'sc_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
+    image_dirs = os.path.join(OUT_DIR, c.model, c.class_name, 'sc_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H_%M_%S"))
     # images
     if not os.path.isdir(image_dirs):
         print('Exporting scores...')
@@ -101,13 +101,13 @@ def export_scores(c, test_img, scores, threshold):
             ax_img[0].imshow(img, cmap='gray', interpolation='none')
             ax_img[0].imshow(score_map, cmap='jet', norm=norm, alpha=0.5, interpolation='none')
             ax_img[1].imshow(score_img)
-            image_file = os.path.join(image_dirs, '{:08d}'.format(i))
+            image_file = os.path.join(image_dirs, '{:08d}.svg'.format(i))
             fig_img.savefig(image_file, dpi=dpi, format='svg', bbox_inches='tight', pad_inches=0.0)
             plt.close()
 
 
 def export_test_images(c, test_img, gts, scores, threshold):
-    image_dirs = os.path.join(OUT_DIR, c.model, c.class_name, 'images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
+    image_dirs = os.path.join(OUT_DIR, c.model, c.class_name, 'images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H_%M_%S"))
     cm = 1 / 2.54
     # images
     if not os.path.isdir(image_dirs):
@@ -148,6 +148,6 @@ def export_test_images(c, test_img, gts, scores, threshold):
             ax_img[0].imshow(gt_img)
             ax_img[1].imshow(score_map, cmap='jet', norm=norm)
             ax_img[2].imshow(score_img)
-            image_file = os.path.join(image_dirs, '{:08d}'.format(i))
+            image_file = os.path.join(image_dirs, '{:08d}.svg'.format(i))
             fig_img.savefig(image_file, dpi=dpi, format='svg', bbox_inches='tight', pad_inches=0.0)
             plt.close()

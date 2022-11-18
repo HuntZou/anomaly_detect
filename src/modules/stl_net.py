@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from lbp_module import LBPModule
+from modules.lbp_module import LBPModule
 
 
 class ConvBNReLU(nn.Module):
@@ -15,12 +15,14 @@ class ConvBNReLU(nn.Module):
         if mode == '2d':
             self.conv = nn.Conv2d(
                 c_in, c_out, kernel_size=kernel_size, stride=stride,
-                padding=padding, dilation=dilation, bias=False, groups=group)
+                padding=padding, dilation=dilation, bias=False, groups=group
+            )
             norm_layer = nn.BatchNorm2d
         elif mode == '1d':
             self.conv = nn.Conv1d(
                 c_in, c_out, kernel_size=kernel_size, stride=stride,
-                padding=padding, dilation=dilation, bias=False, groups=group)
+                padding=padding, dilation=dilation, bias=False, groups=group
+            )
             norm_layer = nn.BatchNorm1d
         if self.has_bn:
             self.bn = norm_layer(c_out)
