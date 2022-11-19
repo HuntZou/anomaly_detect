@@ -58,13 +58,20 @@ def main(c):
         c.use_cuda = not c.no_cuda and torch.cuda.is_available()
         c.device = torch.device("cuda" if c.use_cuda else "cpu")
         net = STLNet_AD(in_channels=3, pretrained=True, output_stride=16)
+
+        # load pre-train module if exist
+        pre_module_path = os.path.join(utils.get_dir(project_dir, "output", "modules"), f'{c.class_name}.pth')
+        if os.path.exists(pre_module_path):
+            print(f'load pre-train module: {c.class_name}')
+            net.load_state_dict(torch.load(pre_module_path))
+
         net = net.to(c.device)
         optimizer = optim.SGD(net.parameters(), lr=c.lr, weight_decay=c.weight_decay, momentum=0.9, nesterov=True)
-        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda ep: c.sched_param[0] ** ep)
+        lr_optimizer = optim.lr_scheduler.LambdaLR(optimizer, lambda ep: c.sched_param[0] ** ep)
 
-        det_roc_obs = ScoreObserver('DET_AUROC', c.class_name, c.epochs, c.epochs * 2, threshold=3)
-        seg_roc_obs = ScoreObserver('SEG_AUROC', c.class_name, c.epochs, c.epochs * 2, threshold=3)
-        seg_pro_obs = ScoreObserver('SEG_AUPRO', c.class_name, c.epochs, c.epochs * 2, threshold=3)
+        det_roc_obs = ScoreObserver('DET_AUROC', c.class_name, c.epochs, c.epochs * 2, threshold=4)
+        seg_roc_obs = ScoreObserver('SEG_AUROC', c.class_name, c.epochs, c.epochs * 2, threshold=4)
+        seg_pro_obs = ScoreObserver('SEG_AUPRO', c.class_name, c.epochs, c.epochs * 2, threshold=4)
 
         for epoch in itertools.count():
 
@@ -82,8 +89,7 @@ def main(c):
                 loss.backward()
                 optimizer.step()
                 loss_mean.append(loss.detach())
-            scheduler.step()
-
+            lr_optimizer.step()
             loss_mean = torch.tensor(loss_mean, dtype=torch.double).mean()
 
             board.add_scalar(f"{c.class_name}/train_loss_mean", loss_mean, epoch)
@@ -195,27 +201,27 @@ def main(c):
                     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
                     # export visualuzations
 
+                if c.viz and (got_best_det and got_best_seg):
+                    precision, recall, thresholds = precision_recall_curve(gt_labels, score_labels)
+                    a = 2 * precision * recall
+                    b = precision + recall
+                    f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
+                    det_threshold = thresholds[np.argmax(f1)]
+                    print('Optimal DET Threshold: {:.2f}'.format(det_threshold))
+                    precision, recall, thresholds = precision_recall_curve(gt_mask.flatten(), score_maps.flatten())
+                    a = 2 * precision * recall
+                    b = precision + recall
+                    f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
+                    seg_threshold = thresholds[np.argmax(f1)]
+                    print('Optimal SEG Threshold: {:.2f}'.format(seg_threshold))
+                    # visualize.export_groundtruth(c, test_image_list, gt_mask)
+                    # visualize.export_scores(c, test_image_list, score_maps, seg_threshold)
+                    visualize.export_test_images(c, test_image_list, gt_mask, score_maps, seg_threshold)
+                    # visualize.export_hist(c, gt_mask, score_maps, seg_threshold)
+
                 if got_best_det and got_best_seg:
                     print(f'got_best_det and got_best_seg got best, move to next class')
                     break
-
-        if c.viz:
-            precision, recall, thresholds = precision_recall_curve(gt_labels, score_labels)
-            a = 2 * precision * recall
-            b = precision + recall
-            f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
-            det_threshold = thresholds[np.argmax(f1)]
-            print('Optimal DET Threshold: {:.2f}'.format(det_threshold))
-            precision, recall, thresholds = precision_recall_curve(gt_mask.flatten(), score_maps.flatten())
-            a = 2 * precision * recall
-            b = precision + recall
-            f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
-            seg_threshold = thresholds[np.argmax(f1)]
-            print('Optimal SEG Threshold: {:.2f}'.format(seg_threshold))
-            visualize.export_groundtruth(c, test_image_list, gt_mask)
-            visualize.export_scores(c, test_image_list, score_maps, seg_threshold)
-            visualize.export_test_images(c, test_image_list, gt_mask, score_maps, seg_threshold)
-            visualize.export_hist(c, gt_mask, score_maps, seg_threshold)
 
 
 def fcdd_loss(outs, outs1, gtmaps, labels):
@@ -617,11 +623,13 @@ class ScoreObserver:
 
         self.last_epoch = epoch
         self.last_score = score
-        if epoch == 0 or score > self.max_score:
+        if score > self.max_score:
             self.max_score = score
             self.max_epoch = epoch
 
-            torch.save(module.state_dict(), os.path.join(utils.get_dir(project_dir, 'output', 'modules'), f'{self.cls}.pth'))
+            if epoch > 0:
+                torch.save(module.state_dict(), os.path.join(utils.get_dir(project_dir, 'output', 'modules'), f'{self.cls}.pth'))
+                print(f'update best result of {self.cls}, module saved')
 
             self.update_count = self.threshold
         elif epoch > self.min_train_epoch:
