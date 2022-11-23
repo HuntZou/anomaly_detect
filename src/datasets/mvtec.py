@@ -14,7 +14,7 @@ class ADMvTec(TorchvisionDataset):
 
     def __init__(self, root: str, normal_class: int, preproc: str, nominal_label: int,
                  supervise_mode: str, noise_mode: str, online_supervision: bool,
-                 raw_shape: int = 900):
+                 raw_shape: int = 600):
         """
         AD dataset for MVTec-AD. If no MVTec data is found in the root directory,
         the data is downloaded and processed to be stored in torch tensors with appropriate size (defined in raw_shape).
@@ -36,7 +36,7 @@ class ADMvTec(TorchvisionDataset):
         super().__init__(root)
 
         self.n_classes = 2  # 0: normal, 1: outlier
-        self.shape = (3, 832, 832)  # 224
+        self.shape = (3, 384, 384)  # 224
         self.crp = (256, 256)  # 224
         self.raw_shape = (3,) + (raw_shape,) * 2
         self.normal_classes = tuple([normal_class])

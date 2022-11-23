@@ -162,7 +162,6 @@ class MvTec(VisionDataset, GTMapADDataset):
     def __len__(self) -> int:
         return len(self.data)
 
-
     def process_data(self, verbose=True, shape=None, cls=None):
         assert shape is not None or cls is not None, 'original shape requires a class'
         # 如果admvtec_224×224.pt文件存在，下面语句不执行

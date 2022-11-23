@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 
-from models.hrnet import HRNet
+from modules.hrnet import HRNet
 from modules.stl_net import STL
 
 
@@ -37,51 +37,10 @@ class ResNet(nn.Module):
                 param.requires_grad = False
 
 
-class HrNet(nn.Module):
-    def __init__(self, in_channels=3, out_channels=17):
-        super(HrNet, self).__init__()
-        self.hrnet = HRNet(nof_joints=out_channels, in_channels=in_channels)
-        self.hrnet.load_state_dict(torch.load(r'D:\Downloads\pose_hrnet_w48_384x288.pth'))
-
-    def forward(self, x):
-        x = self.hrnet.conv1(x)
-        x = self.hrnet.bn1(x)
-        x = self.hrnet.relu(x)
-        x = self.hrnet.conv2(x)
-        x = self.hrnet.bn2(x)
-        x = self.hrnet.relu(x)
-
-        x = self.hrnet.layer1(x)
-        x = [trans(x) for trans in self.hrnet.transition1]  # Since now, x is a list (# == nof branches)
-
-        x = self.hrnet.stage2(x)
-        # x = [trans(x[-1]) for trans in self.transition2]    # New branch derives from the "upper" branch only
-        x = [
-            self.hrnet.transition2[0](x[0]),
-            self.hrnet.transition2[1](x[1]),
-            self.hrnet.transition2[2](x[-1])
-        ]  # New branch derives from the "upper" branch only
-
-        low_level_feature = x[0]
-
-        x = self.hrnet.stage3(x)
-        # x = [trans(x) for trans in self.transition3]    # New branch derives from the "upper" branch only
-        x = [
-            self.hrnet.transition3[0](x[0]),
-            self.hrnet.transition3[1](x[1]),
-            self.hrnet.transition3[2](x[2]),
-            self.hrnet.transition3[3](x[-1])
-        ]  # New branch derives from the "upper" branch only
-
-        x = self.hrnet.stage4(x)
-
-        x = self.hrnet.final_layer(x[0])
-
-        return low_level_feature, x
-
-
-# ASPP
 def assp_branch(in_channels, out_channles, kernel_size, dilation):
+    """
+    原论文中接在resnet后面的网络
+    """
     padding = 0 if kernel_size == 1 else dilation
     return nn.Sequential(
         nn.Conv2d(in_channels, out_channles, kernel_size, padding=padding, dilation=dilation, bias=False),
@@ -197,8 +156,7 @@ def initialize_weights(*models):
 class STLNet_AD(nn.Module):
     def __init__(self, in_channels=3, pretrained=True, output_stride=8):
         super(STLNet_AD, self).__init__()
-        # self.backbone = ResNet(in_channels=in_channels, output_stride=16, pretrained=pretrained)
-        self.backbone = HrNet(in_channels=in_channels, out_channels=17)
+        self.backbone = HRNet(in_channels=in_channels, nof_joints=17)
         self.STL = STL(in_channel=48)
         self.self_calibration = SelfCalibration(17, 256, stride=1, padding=1, dilation=1, groups=1, pooling_r=4)
         self.conv2 = nn.Conv2d(1216, 128, 3, 1, 1)  # 1280
@@ -212,7 +170,6 @@ class STLNet_AD(nn.Module):
         # ********
 
     def forward(self, x):
-
         low_level_features, high_level_feature = self.backbone(x)
         stl_features = self.STL(low_level_features)
         self_calibration_feature = self.self_calibration(high_level_feature)

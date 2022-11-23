@@ -339,7 +339,6 @@ class STL(nn.Module):
         self.lbp3 = LBPModule(input_shape=[512, 256, 256], kernel_size=9, output_channel=64, pool_size=7)
 
     def forward(self, x):
-        torch.save(x, r"D:\Downloads\feature.pth")
         x = self.conv_start(x)
 
         x_tem = self.tem(x)
