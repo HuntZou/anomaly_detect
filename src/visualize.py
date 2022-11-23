@@ -119,24 +119,24 @@ def export_test_images(c, test_img, gts, scores, threshold):
             img = (img.transpose(1, 2, 0) - np.min(img))/(np.max(img) - np.min(img))
             # gts
             gt_mask = gts[i].astype(np.float64)
-            gt_mask = morphology.opening(gt_mask, kernel)
+            # gt_mask = morphology.opening(gt_mask, kernel)
             gt_mask = (255.0 * gt_mask).astype(np.uint8)
             gt_img = mark_boundaries(img, gt_mask, color=(1, 0, 0), mode='thick')
             # scores
             score_mask = np.zeros_like(scores[i])
             score_mask[scores[i] > threshold] = 1.0
-            score_mask = morphology.opening(score_mask, kernel)
+            # score_mask = morphology.opening(score_mask, kernel)
             score_mask = (255.0 * score_mask).astype(np.uint8)
             score_img = mark_boundaries(img, score_mask, color=(1, 0, 0), mode='thick')
             score_map = (255.0 * scores[i] * scores_norm).astype(np.uint8)
             fig_img, ax_img = plt.subplots(2, 2)
-            for ax_i in ax_img:
-                ax_i.axes.xaxis.set_visible(False)
-                ax_i.axes.yaxis.set_visible(False)
-                ax_i.spines['top'].set_visible(False)
-                ax_i.spines['right'].set_visible(False)
-                ax_i.spines['bottom'].set_visible(False)
-                ax_i.spines['left'].set_visible(False)
+            # for ax_i in ax_img:
+            #     ax_i.axes.xaxis.set_visible(False)
+            #     ax_i.axes.yaxis.set_visible(False)
+            #     ax_i.spines['top'].set_visible(False)
+            #     ax_i.spines['right'].set_visible(False)
+            #     ax_i.spines['bottom'].set_visible(False)
+            #     ax_i.spines['left'].set_visible(False)
             ax_img[0][0].set_title('original image')
             ax_img[0][0].imshow(img)
             ax_img[0][1].set_title('ground truth')
