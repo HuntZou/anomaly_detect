@@ -332,23 +332,24 @@ class STL(nn.Module):
         super().__init__()
         self.conv_start = ConvBNReLU(in_channel, 512, 1, 1, 0)
         self.tem = TEM(128)
-        self.ptfem = PTFEM()
-        # self.lbp = LBP(256)
-        self.lbp1 = LBPModule(input_shape=[512, 64, 64], kernel_size=3, output_channel=64, pool_size=1)
-        self.lbp2 = LBPModule(input_shape=[512, 64, 64], kernel_size=7, output_channel=64, pool_size=3)
-        self.lbp3 = LBPModule(input_shape=[512, 64, 64], kernel_size=11, output_channel=64, pool_size=5)
         self.dropout = nn.Dropout(0.1)
 
+        self.lbp1 = LBPModule(input_shape=[512, 256, 256], kernel_size=3, output_channel=64, pool_size=1)
+        self.lbp2 = LBPModule(input_shape=[512, 256, 256], kernel_size=5, output_channel=64, pool_size=3)
+        self.lbp3 = LBPModule(input_shape=[512, 256, 256], kernel_size=9, output_channel=64, pool_size=7)
+
     def forward(self, x):
+        torch.save(x, r"D:\Downloads\feature.pth")
         x = self.conv_start(x)
+
+        x_tem = self.tem(x)
+
         x_lbp1 = self.lbp1(x)
         x_lbp2 = self.lbp2(x)
         x_lbp3 = self.lbp3(x)
-        x_tem = self.tem(x)
-        # x = torch.cat([x_tem, x], dim=1)  # c = 256 + 256 = 512
-        # x_ptfem = self.ptfem(x)  # 256
-        x = torch.cat([x, x_tem, x_lbp1, x_lbp2, x_lbp3], dim=1)
-        return x, x_tem
+
+        output = torch.cat([x, x_tem, x_lbp1, x_lbp2, x_lbp3], dim=1)
+        return output
 
 
 def initialize_weights(*models):

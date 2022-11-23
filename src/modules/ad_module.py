@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
+
+from models.hrnet import HRNet
 from modules.stl_net import STL
 
 
@@ -33,6 +35,49 @@ class ResNet(nn.Module):
         for child in layer.children():
             for param in child.parameters():
                 param.requires_grad = False
+
+
+class HrNet(nn.Module):
+    def __init__(self, in_channels=3, out_channels=17):
+        super(HrNet, self).__init__()
+        self.hrnet = HRNet(nof_joints=out_channels, in_channels=in_channels)
+        self.hrnet.load_state_dict(torch.load(r'D:\Downloads\pose_hrnet_w48_384x288.pth'))
+
+    def forward(self, x):
+        x = self.hrnet.conv1(x)
+        x = self.hrnet.bn1(x)
+        x = self.hrnet.relu(x)
+        x = self.hrnet.conv2(x)
+        x = self.hrnet.bn2(x)
+        x = self.hrnet.relu(x)
+
+        x = self.hrnet.layer1(x)
+        x = [trans(x) for trans in self.hrnet.transition1]  # Since now, x is a list (# == nof branches)
+
+        x = self.hrnet.stage2(x)
+        # x = [trans(x[-1]) for trans in self.transition2]    # New branch derives from the "upper" branch only
+        x = [
+            self.hrnet.transition2[0](x[0]),
+            self.hrnet.transition2[1](x[1]),
+            self.hrnet.transition2[2](x[-1])
+        ]  # New branch derives from the "upper" branch only
+
+        low_level_feature = x[0]
+
+        x = self.hrnet.stage3(x)
+        # x = [trans(x) for trans in self.transition3]    # New branch derives from the "upper" branch only
+        x = [
+            self.hrnet.transition3[0](x[0]),
+            self.hrnet.transition3[1](x[1]),
+            self.hrnet.transition3[2](x[2]),
+            self.hrnet.transition3[3](x[-1])
+        ]  # New branch derives from the "upper" branch only
+
+        x = self.hrnet.stage4(x)
+
+        x = self.hrnet.final_layer(x[0])
+
+        return low_level_feature, x
 
 
 # ASPP
@@ -152,9 +197,10 @@ def initialize_weights(*models):
 class STLNet_AD(nn.Module):
     def __init__(self, in_channels=3, pretrained=True, output_stride=8):
         super(STLNet_AD, self).__init__()
-        self.backbone = ResNet(in_channels=in_channels, output_stride=16, pretrained=pretrained)
-        self.STL = STL(in_channel=768)  # 192  768 512
-        self.self_calibration = SelfCalibration(1024, 256, stride=1, padding=1, dilation=1, groups=1, pooling_r=4)
+        # self.backbone = ResNet(in_channels=in_channels, output_stride=16, pretrained=pretrained)
+        self.backbone = HrNet(in_channels=in_channels, out_channels=17)
+        self.STL = STL(in_channel=48)
+        self.self_calibration = SelfCalibration(17, 256, stride=1, padding=1, dilation=1, groups=1, pooling_r=4)
         self.conv2 = nn.Conv2d(1216, 128, 3, 1, 1)  # 1280
         self.conv_final = nn.Conv2d(128, 32, 1)
         self.conv_score = nn.Conv2d(32, 1, 1)
@@ -166,16 +212,19 @@ class STLNet_AD(nn.Module):
         # ********
 
     def forward(self, x):
-        x, low_level_features_1, low_level_features_2, low_level_features_3 = self.backbone(x)
-        low_level_features, x_tem = self.STL(self.feature_cat(low_level_features_1, low_level_features_2))
-        low_level_features_3 = self.self_calibration(low_level_features_3)
-        low_level_features = self.feature_cat(low_level_features, low_level_features_3)
-        low_level_features = self.conv2(low_level_features)
 
-        anorm_heatmap = self.conv_final(low_level_features)
-        score_map = self.conv_score(anorm_heatmap)
+        low_level_features, high_level_feature = self.backbone(x)
+        stl_features = self.STL(low_level_features)
+        self_calibration_feature = self.self_calibration(high_level_feature)
+        high_level_feature = self.feature_cat(stl_features, self_calibration_feature)
 
-        return anorm_heatmap, score_map
+        high_level_feature = self.conv2(high_level_feature)
+
+        # anorm_map 只预测像素是否异常，用0和1表示，而 score_map 预测像素异常得分，分数越高异常的可能性越大
+        anorm_map = self.conv_final(high_level_feature)
+        score_map = self.conv_score(anorm_map)
+
+        return anorm_map, score_map
 
     def feature_cat(self, low_level_features_1, low_level_features_2):
         H, W = low_level_features_1.size(2), low_level_features_1.size(3)

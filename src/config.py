@@ -19,7 +19,7 @@ def get_args():
                         help='image resize dimensions (default: 256)')
     parser.add_argument("--action-type", default='norm-train', type=str, metavar='T',
                         help='norm-train/norm-test (default: norm-train)')
-    parser.add_argument('-bs', '--batch-size', default=2, type=int, metavar='B',
+    parser.add_argument('-bs', '--batch-size', default=1, type=int, metavar='B',
                         help='train batch size (default: 8)')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate (default: 1e-4)')

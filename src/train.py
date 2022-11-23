@@ -30,12 +30,12 @@ CLASS_NAMES = ['bottle', 'cable', 'capsule', 'carpet', 'grid',
 
 
 def main(c):
-    for class_name in range(0, len(CLASS_NAMES)):
+    for class_name in range(2, len(CLASS_NAMES)):
         c.class_name = CLASS_NAMES[class_name]
         print(f"{time.ctime()} start training class: {c.class_name}")
 
         c.img_size = (c.input_size, c.input_size)  # HxW format
-        c.crp_size = (256, 256)  # HxW format  # 224 * 224
+        c.crp_size = (832, 832)  # HxW format  # 224 * 224
         c.norm_mean, c.norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
         c.img_dims = [3] + list(c.img_size)
         c.model = 'mvtec'
@@ -116,11 +116,13 @@ def main(c):
                 score_maps = score_maps - score_maps.min()
                 score_maps = score_maps / score_maps.max()
 
+                # 标签预测准确率
                 score_labels = np.max(score_maps, axis=(1, 2))
                 gt_labels = np.asarray(gt_label_list, dtype=bool)
                 det_roc_auc = roc_auc_score(gt_labels, score_labels)
                 got_best_det = det_roc_obs.update(100.0 * det_roc_auc, epoch, net)
 
+                # 像素预测准确率
                 gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
                 seg_roc_auc = roc_auc_score(gt_mask.flatten(), score_maps.flatten())
                 got_best_seg = seg_roc_obs.update(100.0 * seg_roc_auc, epoch, net)
@@ -201,7 +203,7 @@ def main(c):
                     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
                     # export visualuzations
 
-                if c.viz and (got_best_det and got_best_seg):
+                if c.viz and (got_best_det and got_best_seg) or True:
                     precision, recall, thresholds = precision_recall_curve(gt_labels, score_labels)
                     a = 2 * precision * recall
                     b = precision + recall
@@ -259,6 +261,9 @@ def __Gau_loss(outs, gtmaps, ref_mean, ref_var):
 
 
 def __fcdd_pixloss(loss, gtmaps):
+    """
+    计算所有预测像素与gt偏离的平均值
+    """
     loss = torch.norm(loss, p=2, dim=1).unsqueeze(1)
     loss = loss ** 2  # 张量间基本计算
     loss = (loss + 1).sqrt() - 1
@@ -425,6 +430,9 @@ def __f_score_sim1(outs, outs1, labels):
 
 
 def __score_loss(loss, gtmaps):
+    """
+    使得异常区域得分更高，而正常区域得分更低（注：gtmap只有0和1，而这里希望异常得分map的正常异常像素区分度更大）
+    """
     # loss = abs(loss)
     # loss = torch.sigmoid(loss)
     loss = torch.norm(loss, p=2, dim=1).unsqueeze(1)
