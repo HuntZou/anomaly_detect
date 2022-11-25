@@ -69,9 +69,9 @@ def main(c):
         optimizer = optim.SGD(net.parameters(), lr=c.lr, weight_decay=c.weight_decay, momentum=0.9, nesterov=True)
         lr_optimizer = optim.lr_scheduler.LambdaLR(optimizer, lambda ep: c.sched_param[0] ** ep)
 
-        det_roc_obs = ScoreObserver('DET_AUROC', c.class_name, c.epochs, c.epochs * 2, threshold=4)
-        seg_roc_obs = ScoreObserver('SEG_AUROC', c.class_name, c.epochs, c.epochs * 2, threshold=4)
-        seg_pro_obs = ScoreObserver('SEG_AUPRO', c.class_name, c.epochs, c.epochs * 2, threshold=4)
+        label_roc_observer = ScoreObserver('DET_AUROC', c.class_name, c.epochs, c.epochs * 2, threshold=4)
+        pixel_roc_observer = ScoreObserver('SEG_AUROC', c.class_name, c.epochs, c.epochs * 2, threshold=4)
+        pixel_pro_observer = ScoreObserver('SEG_AUPRO', c.class_name, c.epochs, c.epochs * 2, threshold=4)
 
         for epoch in itertools.count():
 
@@ -119,11 +119,11 @@ def main(c):
                 score_labels = np.max(score_maps, axis=(1, 2))
                 gt_labels = np.asarray(gt_label_list, dtype=bool)
                 det_roc_auc = roc_auc_score(gt_labels, score_labels)
-                got_best_det = det_roc_obs.update(100.0 * det_roc_auc, epoch, net)
+                best_label_roc_already = label_roc_observer.update(100.0 * det_roc_auc, epoch, net)
 
                 gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
                 seg_roc_auc = roc_auc_score(gt_mask.flatten(), score_maps.flatten())
-                got_best_seg = seg_roc_obs.update(100.0 * seg_roc_auc, epoch, net)
+                best_pixel_roc_already = pixel_roc_observer.update(100.0 * seg_roc_auc, epoch, net)
 
                 if c.pro:
                     """
@@ -195,13 +195,13 @@ def main(c):
                     fprs_selected = rescale(fprs_selected)  # rescale fpr [0,0.3] -> [0, 1]
                     pros_mean_selected = pros_mean[idx]
                     seg_pro_auc = auc(fprs_selected, pros_mean_selected)
-                    _ = seg_pro_obs.update(100.0 * seg_pro_auc, epoch, net)
+                    _ = pixel_pro_observer.update(100.0 * seg_pro_auc, epoch, net)
                     #
 
                     # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
                     # export visualuzations
 
-                if c.viz and (got_best_det and got_best_seg):
+                if c.viz and (best_label_roc_already and best_pixel_roc_already):
                     precision, recall, thresholds = precision_recall_curve(gt_labels, score_labels)
                     a = 2 * precision * recall
                     b = precision + recall
@@ -219,8 +219,10 @@ def main(c):
                     visualize.export_test_images(c, test_image_list, gt_mask, score_maps, seg_threshold)
                     # visualize.export_hist(c, gt_mask, score_maps, seg_threshold)
 
-                if got_best_det and got_best_seg:
-                    print(f'got_best_det and got_best_seg got best, move to next class')
+                if best_label_roc_already and best_pixel_roc_already:
+                    print(f'class: {c.class_name} train done, '
+                          f'best_label_roc: {label_roc_observer.max_score} on epoch: {label_roc_observer.max_epoch}, '
+                          f'best_pixel_roc: {pixel_roc_observer.max_score} on epoch: {pixel_roc_observer.max_epoch}')
                     break
 
 
