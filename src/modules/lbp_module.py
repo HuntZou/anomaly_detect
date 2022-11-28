@@ -32,13 +32,14 @@ class LBPModule(torch.nn.Module):
         self.conv_final = torch.nn.Conv2d(in_channels=16, out_channels=output_channel, kernel_size=3, padding=1)
 
         self.clamp_threshold = torch.nn.Parameter(torch.tensor(150.), requires_grad=True)
+        self.clamp = ClampModel()
 
     def forward(self, x: torch.Tensor):
         x = torch_func.avg_pool2d(input=x, kernel_size=self.pool_size, stride=1, padding=int(self.pool_size / 2))
 
         x = torch_func.conv2d(x, self.lbp_kernel, padding=int(self.kernel_size / 2))
 
-        x = torch.clamp(x, -self.clamp_threshold, self.clamp_threshold)
+        x = self.clamp(x)
 
         x = x[:, ::2] - x[:, 1::2]
 
@@ -49,11 +50,24 @@ class LBPModule(torch.nn.Module):
         return x
 
 
-if __name__ == '__main__':
-    i = torch.randint(0, 9, size=(2, 2, 64, 64)).float()
-    # i = torch.arange(0, 2 * 4 * 4, dtype=torch.float).reshape((2, 1, 4, 4))
-    print(i)
-    module = LBPModule([2, 2, 64, 64], 3, 1, 3)
-    o = module(i)
-    print(o)
-    print(o.shape)
+class ClampModel(torch.nn.Module):
+    def __init__(self):
+        super(ClampModel, self).__init__()
+        self.clamp_low_threshold = torch.nn.Parameter(data=torch.tensor(-150.), requires_grad=True)
+        self.clamp_high_threshold = torch.nn.Parameter(data=torch.tensor(150.), requires_grad=True)
+
+        self.clamp = Clamp().apply
+
+    def forward(self, x):
+        x = self.clamp(x, self.clamp_low_threshold, self.clamp_high_threshold)
+        return x
+
+
+class Clamp(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x, low_threshold, high_threshold):
+        return torch.clamp(x, low_threshold, high_threshold)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output, torch.sum(grad_output), torch.sum(grad_output)
