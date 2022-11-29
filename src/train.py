@@ -118,12 +118,14 @@ def main(c):
 
                 score_labels = np.max(score_maps, axis=(1, 2))
                 gt_labels = np.asarray(gt_label_list, dtype=bool)
-                det_roc_auc = roc_auc_score(gt_labels, score_labels)
-                best_label_roc_already = label_roc_observer.update(100.0 * det_roc_auc, epoch, net)
+                label_roc = roc_auc_score(gt_labels, score_labels)
+                best_label_roc_already = label_roc_observer.update(100.0 * label_roc, epoch, net)
+                board.add_scalar(f"{c.class_name}/label_roc", label_roc, epoch)
 
                 gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
-                seg_roc_auc = roc_auc_score(gt_mask.flatten(), score_maps.flatten())
-                best_pixel_roc_already = pixel_roc_observer.update(100.0 * seg_roc_auc, epoch, net)
+                pixel_roc = roc_auc_score(gt_mask.flatten(), score_maps.flatten())
+                best_pixel_roc_already = pixel_roc_observer.update(100.0 * pixel_roc, epoch, net)
+                board.add_scalar(f"{c.class_name}/pixel_roc", pixel_roc, epoch)
 
                 if c.pro:
                     """
