@@ -69,28 +69,25 @@ def main(c):
         optimizer = optim.SGD(net.parameters(), lr=c.lr, weight_decay=c.weight_decay, momentum=0.9, nesterov=True)
         lr_optimizer = optim.lr_scheduler.LambdaLR(optimizer, lambda ep: c.sched_param[0] ** ep)
 
-        label_roc_observer = ScoreObserver('DET_AUROC', c.class_name, c.epochs, c.epochs * 2, threshold=4)
-        pixel_roc_observer = ScoreObserver('SEG_AUROC', c.class_name, c.epochs, c.epochs * 2, threshold=4)
-        pixel_pro_observer = ScoreObserver('SEG_AUPRO', c.class_name, c.epochs, c.epochs * 2, threshold=4)
+        label_roc_observer = ScoreObserver('DET_AUROC', c.class_name, c.epochs, c.epochs * 3, threshold=4)
+        pixel_roc_observer = ScoreObserver('SEG_AUROC', c.class_name, c.epochs, c.epochs * 3, threshold=4)
+        pixel_pro_observer = ScoreObserver('SEG_AUPRO', c.class_name, c.epochs, c.epochs * 3, threshold=4)
 
         for epoch in itertools.count():
 
             net = net.train()
-            loss_mean = list()
+            loss_mean = 0
             for n_batch, data in enumerate(train_loader):
                 if n_batch % int(len(train_loader) / 10) == 0:
                     print(f'{time.ctime()} epoch: {epoch}, class: {c.class_name}, progress: {n_batch} of {len(train_loader)}')
-                inputs, labels, gtmaps = data
-                inputs = inputs.to(c.device)
-                gtmaps = gtmaps.to(c.device)
+                inputs, labels, gtmaps = data[0].to(c.device), data[1], data[2].to(c.device)
                 anorm_heatmap, score_map = net(inputs)
                 optimizer.zero_grad()
                 loss = fcdd_loss(anorm_heatmap, score_map, gtmaps, labels)
                 loss.backward()
                 optimizer.step()
-                loss_mean.append(loss.detach())
+                loss_mean += loss.item()/len(train_loader)
             lr_optimizer.step()
-            loss_mean = torch.tensor(loss_mean, dtype=torch.double).mean()
 
             board.add_scalar(f"{c.class_name}/train_loss_mean", loss_mean, epoch)
 
@@ -228,13 +225,13 @@ def main(c):
                     break
 
 
-def fcdd_loss(outs, outs1, gtmaps, labels):
+def fcdd_loss(anorm_heatmap, score_map, gtmaps, labels):
     # loss = torch.norm(outs, p=2, dim=1).unsqueeze(1)
     # loss = loss ** 2  # 张量间基本计算
     # loss = (loss + 1).sqrt() - 1
-    loss1 = __fcdd_pixloss(outs, gtmaps)
-    loss2 = __f_score_sim(outs, outs1, labels)
-    loss3 = __score_loss(outs1, gtmaps)
+    loss1 = __fcdd_pixloss(anorm_heatmap, gtmaps)
+    loss2 = __f_score_sim(anorm_heatmap, score_map, labels)
+    loss3 = __score_loss(score_map, gtmaps)
     # loss_tem = __fcdd_pixloss(x_tem, gtmaps)
     # loss_tem = se_loss(x_tem, gtmaps)
     # loss_ad = __adjacent_loss(outs, labels)
@@ -262,30 +259,30 @@ def __Gau_loss(outs, gtmaps, ref_mean, ref_var):
     return abs(loss)
 
 
-def __fcdd_pixloss(loss, gtmaps):
-    loss = torch.norm(loss, p=2, dim=1).unsqueeze(1)
-    loss = loss ** 2  # 张量间基本计算
-    loss = (loss + 1).sqrt() - 1
-    loss = F.interpolate(loss, size=c.crp_size, mode='bilinear', align_corners=True)
-    N, C, H, W = loss.size()
+def __fcdd_pixloss(anorm_heatmap, gtmaps):
+    anorm_heatmap = torch.norm(anorm_heatmap, p=2, dim=1).unsqueeze(1)
+    anorm_heatmap = anorm_heatmap ** 2  # 张量间基本计算
+    anorm_heatmap = (anorm_heatmap + 1).sqrt() - 1
+    anorm_heatmap = F.interpolate(anorm_heatmap, size=c.crp_size, mode='bilinear', align_corners=True)
+    N, C, H, W = anorm_heatmap.size()
     P = N * C * H * W
-    loss = loss.reshape(P)
+    anorm_heatmap = anorm_heatmap.reshape(P)
     gtmaps = gtmaps.reshape(P)
     # loss_ = __norm_anom_margin(loss, gtmaps)
-    norm = loss[gtmaps == 0]  # loss 张量对应于label张量元素为0的相应位置，形成的张量赋值给norma
+    norm = anorm_heatmap[gtmaps == 0]  # loss 张量对应于label张量元素为0的相应位置，形成的张量赋值给norma
     # norm = loss[gtmaps==0]-2.5
     # norm[norm<0]=0
     if 1 in gtmaps:
-        anom = (-(((1 - (-loss[gtmaps == 1]).exp()) + 1e-31).log()))  # 防止为0
+        anom = (-(((1 - (-anorm_heatmap[gtmaps == 1]).exp()) + 1e-31).log()))  # 防止为0
         # anom = (-loss[gtmaps == 1]).exp()
         # print(norm.mean(), loss[gtmaps == 1].mean())
-        loss = 0.5 * norm.mean() + 0.5 * anom.mean()
+        anorm_heatmap = 0.5 * norm.mean() + 0.5 * anom.mean()
 
     else:
         anom = 0
-        loss = norm.mean()
+        anorm_heatmap = norm.mean()
 
-    return loss
+    return anorm_heatmap
 
 
 def margin_mean(loss, gtmaps):
@@ -361,26 +358,26 @@ def __adjacent_loss(outs, labels):
     return sim_dis
 
 
-def __f_score_sim(outs, outs1, labels):
-    outs = outs[labels == 0]
-    outs1 = outs1[labels == 0]
-    N, C, H, W = outs.size()
+def __f_score_sim(anorm_heatmap, score_map, labels):
+    anorm_heatmap = anorm_heatmap[labels == 0]
+    score_map = score_map[labels == 0]
+    N, C, H, W = anorm_heatmap.size()
     sim_dis = torch.tensor(0.).cuda()
     # outs = F.normalize(outs, p=2, dim=1)
     # outs1 = F.normalize(outs1, p=2, dim=1)
     for i in range(N):
         # s_map = pair_wise_sim_map(outs1[i], outs1[i])
         # f_map = pair_wise_sim_map(outs[i], outs[i])
-        s_map = sim_distance(outs1[i], 2, 4)
+        s_map = sim_distance(score_map[i], 2, 4)
         # s_map = pair_distance(outs[i])
-        f_map = sim_distance(outs[i], 2, 4)
+        f_map = sim_distance(anorm_heatmap[i], 2, 4)
         # p_f = F.log_softmax(f_map / 1.0 + 1e-31, dim=1)
         p_s = F.log_softmax(s_map / 1.0, dim=1)
         p_f = F.softmax(f_map / 1.0, dim=1)
         # sim_dis_ = F.kl_div(p_s, p_f, reduction='batchmean')
         # sim_dis += sim_dis_
         sim_dis += F.kl_div(p_s, p_f, reduction='batchmean')
-    sim_dis = sim_dis / N
+    sim_dis = (sim_dis / N) if N != 0 else 1
 
     # s_map = pair_distance(outs1)
     # f_map = pair_distance(outs)
@@ -428,33 +425,35 @@ def __f_score_sim1(outs, outs1, labels):
     return sim_dis
 
 
-def __score_loss(loss, gtmaps):
+def __score_loss(score_map, gtmaps):
     # loss = abs(loss)
     # loss = torch.sigmoid(loss)
-    loss = torch.norm(loss, p=2, dim=1).unsqueeze(1)
-    loss = F.interpolate(loss, size=c.crp_size, mode='bilinear', align_corners=True)
-    N, C, H, W = loss.size()
+    score_map = torch.norm(score_map, p=2, dim=1).unsqueeze(1)
+    score_map = F.interpolate(score_map, size=c.crp_size, mode='bilinear', align_corners=True)
+    N, C, H, W = score_map.size()
     P = N * C * H * W
-    loss = loss.reshape(P)
+    score_map = score_map.reshape(P)
     gtmaps = gtmaps.reshape(P)
-    loss_ = __norm_anom_loss(loss, gtmaps)
-    norm = loss[gtmaps == 0]
+    loss_ = __norm_anom_loss(score_map, gtmaps)
+    norm = score_map[gtmaps == 0]
     # anom = loss[gtmaps == 1]
     norm = norm - 2.5
     norm[norm < 0] = 0
     # anom = 10-loss[gtmaps == 1]
     # anom[anom < 0] = 0
-    loss = norm.mean() + loss_
+    score_map = norm.mean() + loss_
     # print(norm.mean(), loss_)
     # loss[(1 - gtmaps).nonzero().squeeze()] = norm
     # loss[gtmaps.nonzero().squeeze()] = anom
 
-    return loss
+    return score_map
 
 
 def __norm_anom_loss(loss, gtmaps):
     norm = loss[gtmaps == 0]
     anom = loss[gtmaps == 1]
+    if len(anom) == 0:
+        anom = torch.zeros_like(norm)
     perm1 = torch.randperm(norm.size()[0])
     norm = norm[perm1]
     perm2 = torch.randperm(anom.size()[0])
@@ -639,7 +638,7 @@ class ScoreObserver:
         elif epoch > self.min_train_epoch:
             self.update_count -= 1
 
-        if self.update_count <= 0 or epoch >= self.max_train_epoch or self.max_score == 100.:
+        if self.update_count < 0 or epoch >= self.max_train_epoch or self.max_score == 100.:
             self.update_count = 1
             return True
         return False
