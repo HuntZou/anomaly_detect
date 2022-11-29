@@ -31,7 +31,6 @@ class LBPModule(torch.nn.Module):
         self.conv = torch.nn.Conv2d(in_channels=kernel_size * 2 - 2, out_channels=16, kernel_size=1)
         self.conv_final = torch.nn.Conv2d(in_channels=16, out_channels=output_channel, kernel_size=3, padding=1)
 
-        self.clamp_threshold = torch.nn.Parameter(torch.tensor(150.), requires_grad=True)
         self.clamp = ClampModel()
 
     def forward(self, x: torch.Tensor):
