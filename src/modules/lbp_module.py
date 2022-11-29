@@ -34,18 +34,18 @@ class LBPModule(torch.nn.Module):
         self.clamp = ClampModel()
 
     def forward(self, x: torch.Tensor):
+        # 池化降噪
         x = torch_func.avg_pool2d(input=x, kernel_size=self.pool_size, stride=1, padding=int(self.pool_size / 2))
-
+        # 计算中心像素和其邻域像素的各个梯度
         x = torch_func.conv2d(x, self.lbp_kernel, padding=int(self.kernel_size / 2))
-
+        # 截断特征图，避免值域过大
         x = self.clamp(x)
-
+        # 计算对边像素梯度
         x = x[:, ::2] - x[:, 1::2]
-
+        # 最后接两层卷积
         x = self.conv(x)
         x = torch_func.layer_norm(x, normalized_shape=x.shape[-2:])
         x = torch_func.leaky_relu(self.conv_final(x))
-
         return x
 
 
