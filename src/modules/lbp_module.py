@@ -32,8 +32,8 @@ class LBPModule(torch.nn.Module):
 
         self.lbp_kernel = torch.cat([torch.cat(get_k(idx)) for idx in idx_pairs])
 
-        self.conv = torch.nn.Conv2d(in_channels=4, out_channels=64, kernel_size=1)
-        self.conv_unreasonable = torch.nn.Conv2d(in_channels=3, out_channels=16, kernel_size=1)
+        self.conv_expand_idx = torch.nn.Conv2d(in_channels=4, out_channels=64, kernel_size=1)
+        self.conv = torch.nn.Conv2d(in_channels=3, out_channels=16, kernel_size=1)
         self.conv_final = torch.nn.Conv2d(in_channels=16, out_channels=output_channel, kernel_size=3, padding=1)
 
         self.clamp = ClampModel()
@@ -89,10 +89,11 @@ class LBPModule(torch.nn.Module):
         # 量阶--------------end
 
         # 最后接两层卷积
-        x = torch_func.leaky_relu(self.conv(x))
+        x.permute(0, 3, 1, 2)
+        x = torch_func.leaky_relu(self.conv_expand_idx(x))
         x = x.permute(0, 3, 1, 2)
         x = torch_func.layer_norm(x, normalized_shape=x.shape[-2:])
-        x = torch_func.leaky_relu(self.conv_unreasonable(x))
+        x = torch_func.leaky_relu(self.conv(x))
         x = torch_func.leaky_relu(self.conv_final(x))
         return x
 
