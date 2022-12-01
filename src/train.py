@@ -219,7 +219,7 @@ def main(c):
                     # visualize.export_hist(c, gt_mask, score_maps, seg_threshold)
 
                 if best_label_roc_already and best_pixel_roc_already:
-                    print(f'class: {c.class_name} train done, '
+                    print(f'class: {c.class_name} train done at epoch: {epoch}, '
                           f'best_label_roc: {label_roc_observer.max_score} on epoch: {label_roc_observer.max_epoch}, '
                           f'best_pixel_roc: {pixel_roc_observer.max_score} on epoch: {pixel_roc_observer.max_epoch}')
                     break
