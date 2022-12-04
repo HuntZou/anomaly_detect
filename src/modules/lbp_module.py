@@ -91,6 +91,7 @@ class LBPModule(torch.nn.Module):
         # 最后接两层卷积
         x.permute(0, 3, 1, 2)
         x = torch_func.leaky_relu(self.conv_expand_idx(x))
+        x = torch_func.interpolate(x, self.input_shape[-2:])
         x = x.permute(0, 3, 1, 2)
         x = torch_func.layer_norm(x, normalized_shape=x.shape[-2:])
         x = torch_func.leaky_relu(self.conv(x))

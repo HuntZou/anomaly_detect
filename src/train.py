@@ -35,7 +35,7 @@ def main(c):
         print(f"{time.ctime()} start training class: {c.class_name}")
 
         c.img_size = (c.input_size, c.input_size)  # HxW format
-        c.crp_size = (256, 256)  # HxW format  # 224 * 224
+        c.crp_size = (448, 448)  # HxW format  # 224 * 224
         c.norm_mean, c.norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
         c.img_dims = [3] + list(c.img_size)
         c.model = 'mvtec'

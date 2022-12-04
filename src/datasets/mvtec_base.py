@@ -291,8 +291,9 @@ class MvTec(VisionDataset, GTMapADDataset):
         file_path, file_name = os.path.split(dataset_tar_file)
         extract_dir = os.path.join(file_path, 'extracted')
 
-        with tarfile.open(dataset_tar_file, 'r:xz') as tar:
-            print(f"extracting dataset tar file: {dataset_tar_file} to {extract_dir}")
-            tar.extractall(path=extract_dir)
+        if not os.path.exists(extract_dir):
+            with tarfile.open(dataset_tar_file, 'r:xz') as tar:
+                print(f"extracting dataset tar file: {dataset_tar_file} to {extract_dir}")
+                tar.extractall(path=extract_dir)
 
         return extract_dir
