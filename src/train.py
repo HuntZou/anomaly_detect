@@ -86,7 +86,7 @@ def main(c):
                 loss = fcdd_loss(anorm_heatmap, score_map, gtmaps, labels)
                 loss.backward()
                 optimizer.step()
-                loss_mean += loss.item()/len(train_loader)
+                loss_mean += loss.item() / len(train_loader)
             lr_optimizer.step()
 
             board.add_scalar(f"{c.class_name}/train_loss_mean", loss_mean, epoch)
@@ -220,8 +220,8 @@ def main(c):
 
                 if best_label_roc_already and best_pixel_roc_already:
                     print(f'class: {c.class_name} train done at epoch: {epoch}, '
-                          f'best_label_roc: {label_roc_observer.max_score} on epoch: {label_roc_observer.max_epoch}, '
-                          f'best_pixel_roc: {pixel_roc_observer.max_score} on epoch: {pixel_roc_observer.max_epoch}')
+                          f'best_label_roc: {round(label_roc_observer.max_score, 2)} at epoch: {round(label_roc_observer.max_epoch, 2)}, '
+                          f'best_pixel_roc: {round(pixel_roc_observer.max_score, 2)} at epoch: {round(pixel_roc_observer.max_epoch, 2)}')
                     break
 
 
