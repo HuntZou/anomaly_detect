@@ -332,9 +332,9 @@ class STL(nn.Module):
         super().__init__()
         self.conv_start = ConvBNReLU(in_channel, 512, 1, 1, 0)
         self.tem = TEM(128)
-        self.lbp1 = LBPModule(input_shape=[512, 64, 64], kernel_size=3, output_channel=64, pool_size=1)
-        self.lbp2 = LBPModule(input_shape=[512, 64, 64], kernel_size=7, output_channel=64, pool_size=3)
-        self.lbp3 = LBPModule(input_shape=[512, 64, 64], kernel_size=11, output_channel=64, pool_size=5)
+        self.lbp1 = LBPModule(input_shape=[512, 56, 56], kernel_size=3, output_channel=64, pool_size=1)
+        self.lbp2 = LBPModule(input_shape=[512, 56, 56], kernel_size=7, output_channel=64, pool_size=3)
+        self.lbp3 = LBPModule(input_shape=[512, 56, 56], kernel_size=11, output_channel=64, pool_size=5)
         self.dropout = nn.Dropout(0.1)
 
     def forward(self, x):
