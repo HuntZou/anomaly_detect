@@ -7,9 +7,11 @@ from typing import Tuple
 import numpy as np
 import torch
 import torchvision.transforms as transforms
+import hashlib
 from PIL import Image
 from torchvision.datasets import VisionDataset
 from torchvision.datasets.imagenet import check_integrity, verify_str_arg
+from config import TrainConfigures
 
 from datasets.bases import GTMapADDataset
 
@@ -22,21 +24,24 @@ class MvTec(VisionDataset, GTMapADDataset):
     url = "ftp://guest:GU%2E205dldo@ftp.softronics.ch/mvtec_anomaly_detection/mvtec_anomaly_detection.tar.xz"
     dataset_file_name = "mvtec_anomaly_detection.tar.xz"
     base_folder = 'mvtec'
-    # base_folder = 'BTAD'
-    labels = (
-        'bottle', 'cable', 'capsule', 'carpet', 'grid', 'hazelnut', 'leather',
-        'metal_nut', 'pill', 'screw', 'tile', 'toothbrush', 'transistor',
-        'wood', 'zipper'
-    )
-    # labels = ('01', '02', '03')
     normal_anomaly_label = 'good'
     normal_anomaly_label_idx = 0
 
-    def __init__(self, root: str, split: str = 'train', target_transform: Callable = None,
-                 img_gt_transform: Callable = None, transform: Callable = None, all_transform: Callable = None,
-                 shape=(3, 300, 300), normal_classes=(), nominal_label=0, anomalous_label=1,
-                 logger: Logger = None, enlarge: bool = False, flag: bool = False,
-                 ):
+    def __init__(
+            self, root: str,
+            split: str = 'train',
+            target_transform: Callable = None,
+            img_gt_transform: Callable = None,
+            transform: Callable = None,
+            all_transform: Callable = None,
+            shape=(3, 300, 300),
+            normal_classes=(),
+            nominal_label=0,
+            anomalous_label=1,
+            logger: Logger = None,
+            enlarge: bool = False,
+            flag: bool = False,
+    ):
         """
         Loads all data from the prepared torch tensors. If such torch tensors containg MVTec data are not found
         in the given root directory, instead downloads the raw data and prepares the tensors.
@@ -78,7 +83,6 @@ class MvTec(VisionDataset, GTMapADDataset):
         self.split = verify_str_arg(split, "split", ("train", "test", "test_anomaly_label_target"))
         self.img_gt_transform = img_gt_transform
         self.all_transform = all_transform
-        self.shape = shape
         self.orig_gtmaps = None
         self.normal_classes = normal_classes
         self.nominal_label = nominal_label
@@ -87,7 +91,7 @@ class MvTec(VisionDataset, GTMapADDataset):
         self.enlarge = enlarge
         self.flag = flag
 
-        self.process_data(shape=self.shape[1:])
+        self.process_data(shape=TrainConfigures.crop_size)
 
         print(f"load dataset from {self.data_file}")
         dataset_dict = torch.load(self.data_file)
@@ -172,7 +176,7 @@ class MvTec(VisionDataset, GTMapADDataset):
             test_data, test_labels, test_maps, test_anomaly_labels = [], [], [], []
             anomaly_labels, albl_idmap = [], {self.normal_anomaly_label: self.normal_anomaly_label_idx}
 
-            for lbl_idx, lbl in enumerate(self.labels if cls is None else [self.labels[cls]]):
+            for lbl_idx, lbl in enumerate(TrainConfigures.classes if cls is None else [TrainConfigures.classes[cls]]):
                 if verbose:
                     print('Processing data for label {}'.format(lbl))
                 for anomaly_label in sorted(os.listdir(os.path.join(extract_dir, lbl, 'test'))):  # os.listdir 返回路径下文件名组成的列表
@@ -261,7 +265,10 @@ class MvTec(VisionDataset, GTMapADDataset):
 
     @property
     def filename(self):
-        return "admvtec_{}x{}.pt".format(self.shape[1], self.shape[2])
+        # The order of the training classes is relevant to the dataset used for model training,
+        # therefore it is necessary to include category order-related information in the serialized dataset.
+        classes_hash = hashlib.md5("_".join(TrainConfigures.classes).encode()).hexdigest() if TrainConfigures.classes else "no_special_class"
+        return "admvtec_{}x{}_{}.pt".format(TrainConfigures.crop_size[0], TrainConfigures.crop_size[1], classes_hash)
         # return "BTAD_{}x{}.pt".format(self.shape[1], self.shape[2])
 
     def orig_data_file(self, cls):

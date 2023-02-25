@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from modules.lbp_module import LBPModule
+from config import TrainConfigures
 
 
 class ConvBNReLU(nn.Module):
@@ -66,7 +67,7 @@ class QCO_1d(nn.Module):
         cos_sim_min = cos_sim_min.unsqueeze(-1)  # 最小值 Nx1
         cos_sim_max, _ = cos_sim.max(-1)
         cos_sim_max = cos_sim_max.unsqueeze(-1)  # 最大值 Nx1
-        q_levels = torch.arange(self.level_num).float().cuda()  # 量化级数
+        q_levels = torch.arange(self.level_num).float().to(TrainConfigures.device)  # 量化级数
         q_levels = q_levels.expand(N, self.level_num)  # 扩充为：NxL
         q_levels = (2 * q_levels + 1) / (2 * self.level_num) * (cos_sim_max - cos_sim_min) + cos_sim_min  # L级数
         q_levels = q_levels.unsqueeze(1)  # Nx1xL
@@ -126,7 +127,7 @@ class QCO_2d(nn.Module):
         cos_sim_min = cos_sim_min.unsqueeze(-1)
         cos_sim_max, _ = cos_sim.max(1)
         cos_sim_max = cos_sim_max.unsqueeze(-1)
-        q_levels = torch.arange(self.level_num).float().cuda()
+        q_levels = torch.arange(self.level_num).float().to(TrainConfigures.device)
         q_levels = q_levels.expand(N, self.scale * self.scale, self.level_num)
         q_levels = (2 * q_levels + 1) / (2 * self.level_num) * (cos_sim_max - cos_sim_min) + cos_sim_min
         q_levels_inter = q_levels[:, :, 1] - q_levels[:, :, 0]
@@ -216,7 +217,7 @@ class LBP(nn.Module):
         min = cos_sim.min(-1)[0].unsqueeze(-1).expand(N, H1)
         max = cos_sim.max(-1)[0].unsqueeze(-1).expand(N, H1)
         cos_sim = (cos_sim - min) / (max - min)
-        cos_sim = cos_sim.float().cuda()
+        cos_sim = cos_sim.float().to(TrainConfigures.device)
         # Nxsize_h*size_w
         cos_sim = cos_sim.unsqueeze(1).view(N, 1, -1)
         cos_sim = cos_sim.view(N, -1)
@@ -224,7 +225,7 @@ class LBP(nn.Module):
         cos_sim_min = cos_sim_min.unsqueeze(-1)  # 最小值 Nx1
         cos_sim_max, _ = cos_sim.max(-1)
         cos_sim_max = cos_sim_max.unsqueeze(-1)  # 最大值 Nx1
-        q_levels = torch.arange(self.level_num).float().cuda()  # 量化级数
+        q_levels = torch.arange(self.level_num).float().to(TrainConfigures.device)  # 量化级数
         q_levels = q_levels.expand(N, self.level_num)  # 扩充为：NxL
         q_levels = (2 * q_levels + 1) / (2 * self.level_num) * (cos_sim_max - cos_sim_min) + cos_sim_min  # L级数
         q_levels = q_levels.unsqueeze(1)  # Nx1xL

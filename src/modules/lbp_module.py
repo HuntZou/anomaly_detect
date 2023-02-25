@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as torch_func
+from config import TrainConfigures
 
 
 class LBPModule(torch.nn.Module):
@@ -21,11 +22,11 @@ class LBPModule(torch.nn.Module):
 
         # 根据轴两端的坐标得到两个卷积核
         def get_k(idx: []):
-            kernel1 = torch.zeros(size=(input_shape[-3], self.kernel_size, self.kernel_size)).cuda()
+            kernel1 = torch.zeros(size=(input_shape[-3], self.kernel_size, self.kernel_size)).to(TrainConfigures.device)
             kernel1[:, int(self.kernel_size / 2), int(self.kernel_size / 2)] = 1.
             kernel1[:, idx[0][0], idx[0][1]] = -1.
 
-            kernel2 = torch.zeros(size=(input_shape[-3], self.kernel_size, self.kernel_size)).cuda()
+            kernel2 = torch.zeros(size=(input_shape[-3], self.kernel_size, self.kernel_size)).to(TrainConfigures.device)
             kernel2[:, int(self.kernel_size / 2), int(self.kernel_size / 2)] = 1.
             kernel2[:, idx[1][0], idx[1][1]] = -1.
             return kernel1.unsqueeze(0), kernel2.unsqueeze(0)
@@ -40,10 +41,10 @@ class LBPModule(torch.nn.Module):
 
         self.quant_len = 8
 
-        self.idxs = torch.cartesian_prod(torch.arange(0, self.quant_len), torch.arange(0, self.quant_len)).cuda()
-        masks = torch.zeros([self.quant_len ** 2, self.quant_len, self.quant_len]).cuda()
-        masks[torch.cat([torch.arange(0, self.quant_len ** 2).reshape(1, self.quant_len ** 2).cuda(), self.idxs.permute([1, 0])]).tolist()] = 1
-        self.masks = masks.unsqueeze(1).repeat([1, input_shape[-1] * input_shape[-2], 1, 1]).float().cuda()
+        self.idxs = torch.cartesian_prod(torch.arange(0, self.quant_len), torch.arange(0, self.quant_len)).to(TrainConfigures.device)
+        masks = torch.zeros([self.quant_len ** 2, self.quant_len, self.quant_len]).to(TrainConfigures.device)
+        masks[torch.cat([torch.arange(0, self.quant_len ** 2).reshape(1, self.quant_len ** 2).to(TrainConfigures.device), self.idxs.permute([1, 0])]).tolist()] = 1
+        self.masks = masks.unsqueeze(1).repeat([1, input_shape[-1] * input_shape[-2], 1, 1]).float().to(TrainConfigures.device)
 
     def forward(self, x: torch.Tensor):
         batch_size = x.shape[0]
