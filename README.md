@@ -12,8 +12,14 @@ python -m pip install -r requirements.txt
 
 ## Run
 
+modify config file `config.py` to fit your env first, like dataset_path is the dataset dir where `mvtec_anomaly_detection.tar.xz` located
+
 take class "bottle" for example:
 
 ```commandline
-python train.py --class-name bottle
+python -u train.py --class-name bottle
 ```
+
+## fine-tuning for special class
+
+capsule: src/datasets/online_supervisor.py:206&288 be commended

@@ -7,14 +7,14 @@ from datasets.bases import TorchvisionDataset, GTSubset
 from datasets.mvtec_base import MvTec
 from datasets.online_supervisor import OnlineSupervisor
 from datasets.preprocessing import local_contrast_normalization, MultiCompose, get_target_label_idx
+from config import TrainConfigures
 
 
 class ADMvTec(TorchvisionDataset):
     enlarge = True  # enlarge dataset by repeating all data samples ten time, speeds up data loading
 
     def __init__(self, root: str, normal_class: int, preproc: str, nominal_label: int,
-                 supervise_mode: str, noise_mode: str, online_supervision: bool,
-                 raw_shape: int = 280):
+                 supervise_mode: str, noise_mode: str, online_supervision: bool):
         """
         AD dataset for MVTec-AD. If no MVTec data is found in the root directory,
         the data is downloaded and processed to be stored in torch tensors with appropriate size (defined in raw_shape).
@@ -36,9 +36,6 @@ class ADMvTec(TorchvisionDataset):
         super().__init__(root)
 
         self.n_classes = 2  # 0: normal, 1: outlier
-        self.shape = (3, 256, 256)  # 224
-        self.crp = (256, 256)  # 224
-        self.raw_shape = (3,) + (raw_shape,) * 2
         self.normal_classes = tuple([normal_class])
         self.outlier_classes = list(range(0, 15))
         self.outlier_classes.remove(normal_class)
@@ -119,7 +116,6 @@ class ADMvTec(TorchvisionDataset):
         img_gt_transform, img_gt_test_transform = None, None
         all_transform = []
         if preproc == 'lcn':
-            assert self.raw_shape == self.shape, 'in case of no augmentation, raw shape needs to fit net input shape'
             img_gt_transform = img_gt_test_transform = MultiCompose([
                 transforms.ToTensor(),
             ])
@@ -131,7 +127,6 @@ class ADMvTec(TorchvisionDataset):
                 )
             ])
         elif preproc in ['', None, 'default', 'none']:
-            assert self.raw_shape == self.shape, 'in case of no augmentation, raw shape needs to fit net input shape'
             img_gt_transform = img_gt_test_transform = MultiCompose([
                 transforms.ToTensor(),
             ])
@@ -141,12 +136,12 @@ class ADMvTec(TorchvisionDataset):
         elif preproc in ['aug1']:
             img_gt_transform = MultiCompose([
                 transforms.RandomChoice(
-                    [transforms.RandomCrop(self.shape[-1], padding=0), transforms.Resize(self.shape[-1], Image.NEAREST)]
+                    [transforms.RandomCrop(TrainConfigures.crop_size, padding=0), transforms.Resize(TrainConfigures.crop_size, Image.NEAREST)]
                 ),
                 transforms.ToTensor(),
             ])
             img_gt_test_transform = MultiCompose(
-                [transforms.Resize(self.shape[-1], Image.NEAREST), transforms.ToTensor()]
+                [transforms.Resize(TrainConfigures.crop_size, Image.NEAREST), transforms.ToTensor()]
             )
             test_transform = transforms.Compose([
                 transforms.Normalize(mean[normal_class], std[normal_class])
@@ -169,14 +164,16 @@ class ADMvTec(TorchvisionDataset):
             #    transforms.ToTensor()
             # ])
             img_gt_transform = MultiCompose([
-                transforms.RandomChoice(
-                    [transforms.RandomCrop(self.shape[-1], padding=0), transforms.Resize(self.shape[-1], Image.NEAREST)]
-                ),
+                transforms.RandomChoice([
+                    transforms.RandomCrop(TrainConfigures.crop_size, padding=0),
+                    transforms.Resize(TrainConfigures.crop_size, Image.NEAREST)
+                ]),
                 transforms.ToTensor(),
             ])
-            img_gt_test_transform = MultiCompose(
-                [transforms.Resize(self.shape[-1], Image.NEAREST), transforms.ToTensor()]
-            )
+            img_gt_test_transform = MultiCompose([
+                transforms.Resize(TrainConfigures.crop_size, Image.NEAREST),
+                transforms.ToTensor()
+            ])
             test_transform = transforms.Compose([
                 transforms.Lambda(lambda x: local_contrast_normalization(x, scale='l1')),
                 transforms.Normalize(
@@ -215,11 +212,15 @@ class ADMvTec(TorchvisionDataset):
                 OnlineSupervisor(self, supervise_mode, noise_mode),  # self：表示ADMvTec类ds
             ])
             train_set = MvTec(
-                root=self.root, split='train',
+                root=self.root,
+                split='train',
                 target_transform=target_transform,
-                img_gt_transform=img_gt_transform, transform=transform, all_transform=all_transform,
-                shape=self.raw_shape, normal_classes=self.normal_classes,
-                nominal_label=self.nominal_label, anomalous_label=self.anomalous_label,
+                img_gt_transform=img_gt_transform,
+                transform=transform,
+                all_transform=all_transform,
+                normal_classes=self.normal_classes,
+                nominal_label=self.nominal_label,
+                anomalous_label=self.anomalous_label,
                 enlarge=ADMvTec.enlarge
             )
             self._train_set = GTSubset(
@@ -230,9 +231,11 @@ class ADMvTec(TorchvisionDataset):
                 target_transform=transforms.Lambda(
                     lambda x: self.anomalous_label if x != MvTec.normal_anomaly_label_idx else self.nominal_label
                 ),
-                img_gt_transform=img_gt_test_transform, transform=test_transform, shape=self.raw_shape,
+                img_gt_transform=img_gt_test_transform,
+                transform=test_transform,
                 normal_classes=self.normal_classes,
-                nominal_label=self.nominal_label, anomalous_label=self.anomalous_label,
+                nominal_label=self.nominal_label,
+                anomalous_label=self.anomalous_label,
                 enlarge=False
             )
             test_idx_normal = get_target_label_idx(test_set.targets.clone().data.cpu().numpy(), self.normal_classes)

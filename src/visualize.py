@@ -12,6 +12,7 @@ OUT_DIR = '../output/viz/'
 norm = matplotlib.colors.Normalize(vmin=0.0, vmax=255.0)
 cm = 1 / 2.54
 dpi = 300
+denormalization_export_norm_mean, denormalization_export_norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 
 
 def denormalization(x, norm_mean, norm_std):
@@ -21,10 +22,10 @@ def denormalization(x, norm_mean, norm_std):
     return x
 
 
-def export_hist(c, gts, scores, threshold):
+def export_hist(class_name, gts, scores, threshold):
     print('Exporting histogram...')
     plt.rcParams.update({'font.size': 4})
-    image_dirs = os.path.join(OUT_DIR, c.model, c.class_name)
+    image_dirs = os.path.join(OUT_DIR, "mvtec", class_name)
     os.makedirs(image_dirs, exist_ok=True)
     Y = scores.flatten()
     Y_label = gts.flatten()
@@ -41,8 +42,8 @@ def export_hist(c, gts, scores, threshold):
     plt.close()
 
 
-def export_groundtruth(c, test_img, gts):
-    image_dirs = os.path.join(OUT_DIR, c.model, c.class_name, 'gt_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H_%M_%S"))
+def export_groundtruth(class_name, test_img, gts):
+    image_dirs = os.path.join(OUT_DIR, "mvtec", class_name, 'gt_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H_%M_%S"))
     # images
     if not os.path.isdir(image_dirs):
         print('Exporting grountruth...')
@@ -51,7 +52,7 @@ def export_groundtruth(c, test_img, gts):
         kernel = morphology.disk(4)
         for i in range(num):
             img = test_img[i]
-            img = denormalization(img, c.norm_mean, c.norm_std)
+            img = denormalization(img, denormalization_export_norm_mean, denormalization_export_norm_std)
             # gts
             gt_mask = gts[i].astype(np.float64)
             gt_mask = morphology.opening(gt_mask, kernel)
@@ -68,8 +69,8 @@ def export_groundtruth(c, test_img, gts):
             plt.close()
 
 
-def export_scores(c, test_img, scores, threshold):
-    image_dirs = os.path.join(OUT_DIR, c.model, c.class_name, 'sc_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H_%M_%S"))
+def export_scores(class_name, test_img, scores, threshold):
+    image_dirs = os.path.join(OUT_DIR, "mvtec", class_name, 'sc_images_' + datetime.datetime.now().strftime("%Y-%m-%d-%H_%M_%S"))
     # images
     if not os.path.isdir(image_dirs):
         print('Exporting scores...')
@@ -79,7 +80,7 @@ def export_scores(c, test_img, scores, threshold):
         scores_norm = 1.0 / scores.max()
         for i in range(num):
             img = test_img[i]
-            img = denormalization(img, c.norm_mean, c.norm_std)
+            img = denormalization(img, denormalization_export_norm_mean, denormalization_export_norm_std)
             # scores
             score_mask = np.zeros_like(scores[i])
             score_mask[scores[i] > threshold] = 1.0
@@ -106,8 +107,8 @@ def export_scores(c, test_img, scores, threshold):
             plt.close()
 
 
-def export_test_images(c, test_img, gts, scores, threshold):
-    image_dirs = os.path.join(OUT_DIR, c.model, c.class_name)
+def export_test_images(class_name, test_img, gts, scores, threshold):
+    image_dirs = os.path.join(OUT_DIR, "mvtec", class_name)
     if not os.path.isdir(image_dirs):
         print('Exporting images...')
         os.makedirs(image_dirs, exist_ok=True)
@@ -116,7 +117,7 @@ def export_test_images(c, test_img, gts, scores, threshold):
         scores_norm = 1.0 / scores.max()
         for i in range(num):
             img = test_img[i]
-            img = (img.transpose(1, 2, 0) - np.min(img))/(np.max(img) - np.min(img))
+            img = (img.transpose(1, 2, 0) - np.min(img)) / (np.max(img) - np.min(img))
             # gts
             gt_mask = gts[i].astype(np.float64)
             # gt_mask = morphology.opening(gt_mask, kernel)

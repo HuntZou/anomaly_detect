@@ -3,8 +3,6 @@ import os
 import time
 from os.path import join as path_join
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
@@ -14,7 +12,7 @@ from sklearn.metrics import roc_auc_score, auc, precision_recall_curve
 from torch.utils.tensorboard import SummaryWriter
 
 from modules.ad_module import STLNet_AD
-from config import get_args
+from config import TrainConfigures
 from datasets import load_dataset
 import numpy as np
 import visualize
@@ -24,54 +22,40 @@ project_dir = os.path.abspath("../")
 
 board = SummaryWriter(path_join(project_dir, "output", "logs"))
 
-CLASS_NAMES = ['bottle', 'cable', 'capsule', 'carpet', 'grid',
-               'hazelnut', 'leather', 'metal_nut', 'pill', 'screw',
-               'tile', 'toothbrush', 'transistor', 'wood', 'zipper']
 
+def main():
+    for class_name_idx in range(0, len(TrainConfigures.classes)):
+        class_name = TrainConfigures.classes[class_name_idx]
+        print(f"{time.ctime()} start training class: {class_name}")
 
-def main(c):
-    for class_name in range(0, len(CLASS_NAMES)):
-        c.class_name = CLASS_NAMES[class_name]
-        print(f"{time.ctime()} start training class: {c.class_name}")
-
-        c.img_size = (c.input_size, c.input_size)  # HxW format
-        c.crp_size = (256, 256)  # HxW format  # 224 * 224
-        c.norm_mean, c.norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
-        c.img_dims = [3] + list(c.img_size)
-        c.model = 'mvtec'
-
-        dataset_path = c.dataset_path
         dataset = 'BTAD'
         supervise_mode = 'malformed_normal_gt'
         preproc = 'lcnaug1'
         noise_mode = 'confetti'
         online_supervision = True
-        nominal_label = c.nominal_label
 
         ds = load_dataset(
-            dataset, os.path.abspath(dataset_path), class_name, preproc, supervise_mode,
-            noise_mode, online_supervision, nominal_label,
+            dataset, os.path.abspath(TrainConfigures.dataset_path), class_name_idx, preproc, supervise_mode,
+            noise_mode, online_supervision, TrainConfigures.nominal_label,
         )
 
-        train_loader, test_loader = ds.loaders(batch_size=c.batch_size, num_workers=c.workers)
+        train_loader, test_loader = ds.loaders(batch_size=TrainConfigures.batch_size, num_workers=TrainConfigures.worker_num)
 
-        c.use_cuda = not c.no_cuda and torch.cuda.is_available()
-        c.device = torch.device("cuda" if c.use_cuda else "cpu")
         net = STLNet_AD(in_channels=3, pretrained=True, output_stride=16)
 
         # load pre-train module if exist
-        pre_module_path = os.path.join(utils.get_dir(project_dir, "output", "modules"), f'{c.class_name}.pth')
+        pre_module_path = os.path.join(utils.get_dir(project_dir, "output", "modules"), f'{class_name}.pth')
         if os.path.exists(pre_module_path):
-            print(f'load pre-train module: {c.class_name}')
+            print(f'load pre-train module: {class_name}')
             net.load_state_dict(torch.load(pre_module_path))
 
-        net = net.to(c.device)
-        optimizer = optim.SGD(net.parameters(), lr=c.lr, weight_decay=c.weight_decay, momentum=0.9, nesterov=True)
-        lr_optimizer = optim.lr_scheduler.LambdaLR(optimizer, lambda ep: c.sched_param[0] ** ep)
+        net = net.to(TrainConfigures.device)
+        optimizer = optim.SGD(net.parameters(), lr=TrainConfigures.learn_rate, weight_decay=TrainConfigures.weight_decay, momentum=0.9, nesterov=True)
+        lr_optimizer = optim.lr_scheduler.LambdaLR(optimizer, lambda ep: TrainConfigures.sched_param ** ep)
 
-        label_roc_observer = ScoreObserver('DET_AUROC', c.class_name, c.epochs, c.epochs * 3, threshold=4)
-        pixel_roc_observer = ScoreObserver('SEG_AUROC', c.class_name, c.epochs, c.epochs * 3, threshold=4)
-        pixel_pro_observer = ScoreObserver('SEG_AUPRO', c.class_name, c.epochs, c.epochs * 3, threshold=4)
+        label_roc_observer = ScoreObserver('LABEL_AUROC', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=4)
+        pixel_roc_observer = ScoreObserver('PIXEL_AUROC', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=4)
+        pixel_pro_observer = ScoreObserver('PIXEL_AUPRO', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=4)
 
         for epoch in itertools.count():
 
@@ -79,19 +63,18 @@ def main(c):
             loss_mean = 0
             for n_batch, data in enumerate(train_loader):
                 if n_batch % int(len(train_loader) / 10) == 0:
-                    print(f'{time.ctime()} epoch: {epoch}, class: {c.class_name}, progress: {n_batch} of {len(train_loader)}')
-                inputs, labels, gtmaps = data[0].to(c.device), data[1], data[2].to(c.device)
+                    print(f'{time.ctime()} epoch: {epoch}, class: {class_name}, progress: {n_batch} of {len(train_loader)}')
+                inputs, labels, gtmaps = data[0].to(TrainConfigures.device), data[1], data[2].to(TrainConfigures.device)
                 anorm_heatmap, score_map = net(inputs)
-                optimizer.zero_grad()
                 loss = fcdd_loss(anorm_heatmap, score_map, gtmaps, labels)
                 loss.backward()
                 optimizer.step()
                 loss_mean += loss.item() / len(train_loader)
             lr_optimizer.step()
 
-            board.add_scalar(f"{c.class_name}/train_loss_mean", loss_mean, epoch)
+            board.add_scalar(f"{class_name}/train_loss_mean", loss_mean, epoch)
 
-            if epoch % 20 == 0:
+            if epoch % TrainConfigures.test_interval == 0:
                 net = net.eval()
                 test_image_list = list()
                 gt_label_list = list()
@@ -103,13 +86,13 @@ def main(c):
                         test_image_list.extend(t2np(inputs))
                         gt_label_list.extend(t2np(labels))
                         gt_mask_list.extend(t2np(masks))
-                        inputs = inputs.to(c.device)
+                        inputs = inputs.to(TrainConfigures.device)
                         _, score_map = net(inputs)
 
                         score_maps += score2(score_map).detach().cpu().tolist()
 
                 score_maps = torch.tensor(score_maps, dtype=torch.double).squeeze()
-                score_maps = F.interpolate(score_maps.unsqueeze(1), c.crp_size).squeeze().numpy()
+                score_maps = F.interpolate(score_maps.unsqueeze(1), TrainConfigures.crop_size).squeeze().numpy()
                 score_maps = score_maps - score_maps.min()
                 score_maps = score_maps / score_maps.max()
 
@@ -117,14 +100,14 @@ def main(c):
                 gt_labels = np.asarray(gt_label_list, dtype=bool)
                 label_roc = roc_auc_score(gt_labels, score_labels)
                 best_label_roc_already = label_roc_observer.update(100.0 * label_roc, epoch, net)
-                board.add_scalar(f"{c.class_name}/label_roc", label_roc, epoch)
+                board.add_scalar(f"{class_name}/label_roc", label_roc, epoch)
 
                 gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
                 pixel_roc = roc_auc_score(gt_mask.flatten(), score_maps.flatten())
                 best_pixel_roc_already = pixel_roc_observer.update(100.0 * pixel_roc, epoch, net)
-                board.add_scalar(f"{c.class_name}/pixel_roc", pixel_roc, epoch)
+                board.add_scalar(f"{class_name}/pixel_roc", pixel_roc, epoch)
 
-                if c.pro:
+                if TrainConfigures.calc_aupro:
                     """
                     calculate segmentation AUPRO
                     AUPRO is expensive to compute
@@ -197,10 +180,10 @@ def main(c):
                     _ = pixel_pro_observer.update(100.0 * seg_pro_auc, epoch, net)
                     #
 
-                    # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, c.model, c.class_name, run_date)
+                    # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, "mvtec", class_name, run_date)
                     # export visualuzations
 
-                if c.viz and (best_label_roc_already and best_pixel_roc_already):
+                if TrainConfigures.visualize and (best_label_roc_already and best_pixel_roc_already):
                     precision, recall, thresholds = precision_recall_curve(gt_labels, score_labels)
                     a = 2 * precision * recall
                     b = precision + recall
@@ -215,14 +198,13 @@ def main(c):
                     print('Optimal SEG Threshold: {:.2f}'.format(seg_threshold))
                     # visualize.export_groundtruth(c, test_image_list, gt_mask)
                     # visualize.export_scores(c, test_image_list, score_maps, seg_threshold)
-                    visualize.export_test_images(c, test_image_list, gt_mask, score_maps, seg_threshold)
+                    visualize.export_test_images(class_name, test_image_list, gt_mask, score_maps, seg_threshold)
                     # visualize.export_hist(c, gt_mask, score_maps, seg_threshold)
 
                 if best_label_roc_already and best_pixel_roc_already:
-                    print(f'class: {c.class_name} train done at epoch: {epoch}, '
+                    print(f'class: {class_name} train done at epoch: {epoch}, '
                           f'best_label_roc: {round(label_roc_observer.max_score, 2)} at epoch: {round(label_roc_observer.max_epoch, 2)}, '
                           f'best_pixel_roc: {round(pixel_roc_observer.max_score, 2)} at epoch: {round(pixel_roc_observer.max_epoch, 2)}')
-                    break
 
 
 def fcdd_loss(anorm_heatmap, score_map, gtmaps, labels):
@@ -263,7 +245,7 @@ def __fcdd_pixloss(anorm_heatmap, gtmaps):
     anorm_heatmap = torch.norm(anorm_heatmap, p=2, dim=1).unsqueeze(1)
     anorm_heatmap = anorm_heatmap ** 2  # 张量间基本计算
     anorm_heatmap = (anorm_heatmap + 1).sqrt() - 1
-    anorm_heatmap = F.interpolate(anorm_heatmap, size=c.crp_size, mode='bilinear', align_corners=True)
+    anorm_heatmap = F.interpolate(anorm_heatmap, size=TrainConfigures.crop_size, mode='bilinear', align_corners=True)
     N, C, H, W = anorm_heatmap.size()
     P = N * C * H * W
     anorm_heatmap = anorm_heatmap.reshape(P)
@@ -289,7 +271,7 @@ def margin_mean(loss, gtmaps):
     loss = torch.norm(loss, p=2, dim=1).unsqueeze(1)
     # loss = loss ** 2  # 张量间基本计算
     # loss = (loss + 1).sqrt() - 1
-    loss = F.interpolate(loss, size=c.crp_size, mode='bilinear', align_corners=True)
+    loss = F.interpolate(loss, size=TrainConfigures.crop_size, mode='bilinear', align_corners=True)
     N, C, H, W = loss.size()
     P = N * C * H * W
     loss = loss.reshape(P)
@@ -315,7 +297,7 @@ def __supervised_loss(loss, labels):
 
 
 def __gt_loss(loss, gtmaps):
-    loss = F.interpolate(loss, size=c.crp_size, mode='bilinear', align_corners=True)
+    loss = F.interpolate(loss, size=TrainConfigures.crop_size, mode='bilinear', align_corners=True)
     norm = (loss * (1 - gtmaps)).view(loss.size(0), -1).mean(-1)
     exclude_complete_nominal_samples = ((gtmaps == 1).view(gtmaps.size(0), -1).sum(-1) > 0)
     anom = torch.zeros_like(norm)
@@ -345,7 +327,7 @@ def __adjacent_loss(outs, labels):
 
     feat_p = F.normalize(feat_p, p=2, dim=1)
     feat_f = F.normalize(feat_f, p=2, dim=1)
-    sim_dis = torch.tensor(0.).cuda()
+    sim_dis = torch.tensor(0.).to(TrainConfigures.device)
     for i in range(B):
         s_sim_map = pair_wise_sim_map(feat_p[i], feat_p[i])
         t_sim_map = pair_wise_sim_map(feat_f[i], feat_f[i])
@@ -362,7 +344,7 @@ def __f_score_sim(anorm_heatmap, score_map, labels):
     anorm_heatmap = anorm_heatmap[labels == 0]
     score_map = score_map[labels == 0]
     N, C, H, W = anorm_heatmap.size()
-    sim_dis = torch.tensor(0.).cuda()
+    sim_dis = torch.tensor(0.).to(TrainConfigures.device)
     # outs = F.normalize(outs, p=2, dim=1)
     # outs1 = F.normalize(outs1, p=2, dim=1)
     for i in range(N):
@@ -393,7 +375,7 @@ def __f_score_sim1(outs, outs1, labels):
     outs1 = outs1[labels == 0]
     N, C, H, W = outs.size()
     P = H * W
-    sim_dis = torch.tensor(0.).cuda()
+    sim_dis = torch.tensor(0.).to(TrainConfigures.device)
     a_j = torch.tensor([0, 1])
     a_j = a_j.repeat(int(P / 2))
     # outs = F.normalize(outs, p=2, dim=1)
@@ -429,7 +411,7 @@ def __score_loss(score_map, gtmaps):
     # loss = abs(loss)
     # loss = torch.sigmoid(loss)
     score_map = torch.norm(score_map, p=2, dim=1).unsqueeze(1)
-    score_map = F.interpolate(score_map, size=c.crp_size, mode='bilinear', align_corners=True)
+    score_map = F.interpolate(score_map, size=TrainConfigures.crop_size, mode='bilinear', align_corners=True)
     N, C, H, W = score_map.size()
     P = N * C * H * W
     score_map = score_map.reshape(P)
@@ -505,7 +487,7 @@ def __pixel_sim_loss(outs, labels):
 
     feat_p = F.normalize(feat_p, p=2, dim=1)
     feat_f = F.normalize(feat_f, p=2, dim=1)
-    sim_dis = torch.tensor(0.).cuda()
+    sim_dis = torch.tensor(0.).to(TrainConfigures.device)
 
     for i in range(1, B):
         for j in range(1, B):
@@ -575,14 +557,14 @@ def score1(outs):
     # loss = 1-(-((loss +1).sqrt() - 1)).exp()
     loss = (loss + 1).sqrt() - 1
     # loss = loss.sqrt()
-    # loss = F.interpolate(loss, size=c.crp_size, mode='bilinear', align_corners=True)
+    # loss = F.interpolate(loss, size=TrainConfigures.crop_size, mode='bilinear', align_corners=True)
     # loss = 1-(-loss).exp()
     loss = loss.squeeze()
     return loss
 
 
 def score2(outs):
-    # outs = F.interpolate(outs, size=c.crp_size, mode='bilinear', align_corners=True)
+    # outs = F.interpolate(outs, size=TrainConfigures.crop_size, mode='bilinear', align_corners=True)
     outs = torch.norm(outs, p=2, dim=1)
     # outs = torch.sigmoid(outs)
     # outs = abs(outs)
@@ -648,13 +630,6 @@ def rescale(x):
     return (x - x.min()) / (x.max() - x.min())
 
 
-def se_loss(outputs, targets):
-    outputs = F.interpolate(outputs, size=c.img_size, mode='bilinear', align_corners=True)
-    CE = torch.nn.BCEWithLogitsLoss()
-    loss = CE(outputs, targets)
-    return loss
-
-
 def simi_loss(outputs):
     # outputs = F.adaptive_avg_pool2d(outputs, (1, 1)).squeeze()
     x1 = outputs.clone()
@@ -702,5 +677,4 @@ def L2_score(u, test_output):
 
 
 if __name__ == '__main__':
-    c = get_args()
-    main(c)
+    main()

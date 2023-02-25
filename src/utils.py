@@ -5,6 +5,8 @@ import pathlib
 import numpy as np
 import torch
 
+from config import TrainConfigures
+
 RESULT_DIR = './results'
 WEIGHT_DIR = './weights'
 MODEL_DIR = './models'
@@ -49,7 +51,7 @@ def load_weights(encoder, decoders, filename):
 
 
 def adjust_learning_rate(c, optimizer, epoch):
-    lr = c.lr
+    lr = TrainConfigures.learn_rate
     if c.lr_cosine:
         eta_min = lr * (c.lr_decay_rate ** 3)
         lr = eta_min + (lr - eta_min) * (
