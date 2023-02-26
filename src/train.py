@@ -51,7 +51,7 @@ def main():
 
         net = net.to(TrainConfigures.device)
         optimizer = optim.SGD(net.parameters(), lr=TrainConfigures.learn_rate, weight_decay=TrainConfigures.weight_decay, momentum=0.9, nesterov=True)
-        lr_optimizer = optim.lr_scheduler.LambdaLR(optimizer, lambda ep: TrainConfigures.sched_param ** ep)
+        lr_optimizer = optim.lr_scheduler.LambdaLR(optimizer, lambda ep: TrainConfigures.sched_param ** ep, verbose=True)
 
         label_roc_observer = ScoreObserver('LABEL_AUROC', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=4)
         pixel_roc_observer = ScoreObserver('PIXEL_AUROC', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=4)
@@ -66,6 +66,7 @@ def main():
                     print(f'{time.ctime()} epoch: {epoch}, class: {class_name}, progress: {n_batch} of {len(train_loader)}')
                 inputs, labels, gtmaps = data[0].to(TrainConfigures.device), data[1], data[2].to(TrainConfigures.device)
                 anorm_heatmap, score_map = net(inputs)
+                optimizer.zero_grad()
                 loss = fcdd_loss(anorm_heatmap, score_map, gtmaps, labels)
                 loss.backward()
                 optimizer.step()
