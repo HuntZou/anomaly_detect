@@ -67,7 +67,7 @@ class QCO_1d(nn.Module):
         cos_sim_min = cos_sim_min.unsqueeze(-1)  # 最小值 Nx1
         cos_sim_max, _ = cos_sim.max(-1)
         cos_sim_max = cos_sim_max.unsqueeze(-1)  # 最大值 Nx1
-        q_levels = torch.arange(self.level_num).float().to(TrainConfigures.device)  # 量化级数
+        q_levels = torch.arange(self.level_num, device=TrainConfigures.device).float()  # 量化级数
         q_levels = q_levels.expand(N, self.level_num)  # 扩充为：NxL
         q_levels = (2 * q_levels + 1) / (2 * self.level_num) * (cos_sim_max - cos_sim_min) + cos_sim_min  # L级数
         q_levels = q_levels.unsqueeze(1)  # Nx1xL
@@ -127,7 +127,7 @@ class QCO_2d(nn.Module):
         cos_sim_min = cos_sim_min.unsqueeze(-1)
         cos_sim_max, _ = cos_sim.max(1)
         cos_sim_max = cos_sim_max.unsqueeze(-1)
-        q_levels = torch.arange(self.level_num).float().to(TrainConfigures.device)
+        q_levels = torch.arange(self.level_num, device=TrainConfigures.device).float()
         q_levels = q_levels.expand(N, self.scale * self.scale, self.level_num)
         q_levels = (2 * q_levels + 1) / (2 * self.level_num) * (cos_sim_max - cos_sim_min) + cos_sim_min
         q_levels_inter = q_levels[:, :, 1] - q_levels[:, :, 0]

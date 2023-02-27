@@ -1,5 +1,6 @@
 import os
 import tarfile
+import time
 from logging import Logger
 from typing import Callable
 from typing import Tuple
@@ -91,9 +92,10 @@ class MvTec(VisionDataset, GTMapADDataset):
         self.enlarge = enlarge
         self.flag = flag
 
+        # download, unzip, process, serialize dataset
         self.process_data(shape=TrainConfigures.crop_size)
 
-        print(f"load dataset from {self.data_file}")
+        print(f"load {split} dataset from {self.data_file}")
         dataset_dict = torch.load(self.data_file)
         self.anomaly_label_strings = dataset_dict['anomaly_label_strings']
         if self.split == 'train':
@@ -112,7 +114,7 @@ class MvTec(VisionDataset, GTMapADDataset):
         if self.nominal_label != 0:
             print('Swapping labels, i.e. anomalies are 0 and nominals are 1, same for GT maps.')
             assert -3 not in [self.nominal_label, self.anom_label]
-        print('Dataset complete.')
+        print(f'load {split} dataset complete.')
 
         self.center_ = transforms.Compose([transforms.ToPILImage(),
                                            transforms.CenterCrop(260),
@@ -170,6 +172,7 @@ class MvTec(VisionDataset, GTMapADDataset):
         assert shape is not None or cls is not None, 'original shape requires a class'
         # 如果admvtec_224×224.pt文件存在，下面语句不执行
         if not check_integrity(self.data_file if shape is not None else self.orig_data_file(cls)):
+            print(f'{time.ctime()} serialize dataset, shape: {shape}')
             # 解压文件
             extract_dir = self.extract_archive(os.path.join(self.root, self.dataset_file_name))
             train_data, train_labels = [], []
@@ -296,7 +299,7 @@ class MvTec(VisionDataset, GTMapADDataset):
     def extract_archive(dataset_tar_file: str) -> str:
         assert len(dataset_tar_file) > 0 and dataset_tar_file.endswith('.tar.xz'), 'invalid dataset source file'
         file_path, file_name = os.path.split(dataset_tar_file)
-        extract_dir = os.path.join(file_path, 'extracted')
+        extract_dir = os.path.join(file_path, 'extracted_mvtec_dataset')
 
         if not os.path.exists(extract_dir):
             with tarfile.open(dataset_tar_file, 'r:xz') as tar:
