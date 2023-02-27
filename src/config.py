@@ -73,7 +73,7 @@ class TrainConfigures:
 
     sched_param = 0.995
     '''
-    优化器的一个参数
+    优化器的一个参数，指定学习率在每轮训练后的调整因数
     '''
 
     calc_aupro = False
