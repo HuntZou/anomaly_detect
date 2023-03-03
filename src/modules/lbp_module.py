@@ -58,25 +58,17 @@ class LBPModule(torch.nn.Module):
 
         # 量阶--------------start
         x = x.reshape([batch_size * 4, 2, x.shape[-2], x.shape[-1]])
-        levels_0 = torch.stack([
-            torch.vstack([
-                *((x[i][0].max() - x[i][0].min()) * l / self.quant_len + x[i][0].min() for l in range(self.quant_len)),
-                x[i][0].max()
-            ]) for i in range(len(x))
-        ], dim=0)
 
-        levels_1 = torch.stack([
-            torch.vstack([
-                *((x[i][1].max() - x[i][1].min()) * l / self.quant_len + x[i][1].min() for l in range(self.quant_len)),
-                x[i][1].max()]) for i in range(len(x))
-        ], dim=0)
+        # 这两行代码计算量阶中每个阶的上下界
+        common_difference = (x.amax(axis=(-1, -2)) - x.amin(axis=(-1, -2))) / self.quant_len
+        measure = (torch.einsum('i,jk->ijk', torch.arange(self.quant_len + 1).to(TrainConfigures.device), common_difference) + x.amin(axis=(-1, -2))).permute(1, 0, 2)
 
         x0 = x[:, 0, ...].reshape([x.shape[0], -1]).unsqueeze(dim=1).repeat([1, self.quant_len, 1])
-        x0[(x0 - levels_0[:, :-1] < 0) | (x0 - levels_0[:, 1:] > 0)] = 0
+        x0[(x0 - measure[:, :-1, :1] < 0) | (x0 - measure[:, 1:, :1] > 0)] = 0
         x0 = x0.unsqueeze(1).permute(0, 3, 2, 1)
 
         x1 = x[:, 1, ...].reshape([x.shape[0], -1]).unsqueeze(dim=1).repeat([1, self.quant_len, 1])
-        x1[(x1 - levels_1[:, :-1] < 0) | (x1 - levels_1[:, 1:] > 0)] = 0
+        x1[(x1 - measure[:, :-1, 1:] < 0) | (x1 - measure[:, 1:, 1:] > 0)] = 0
         x1 = x1.unsqueeze(1).permute(0, 3, 1, 2)
 
         x = x0.matmul(x1)
