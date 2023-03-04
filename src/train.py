@@ -206,6 +206,7 @@ def main():
                     print(f'class: {class_name} train done at epoch: {epoch}, '
                           f'best_label_roc: {round(label_roc_observer.max_score, 2)} at epoch: {round(label_roc_observer.max_epoch, 2)}, '
                           f'best_pixel_roc: {round(pixel_roc_observer.max_score, 2)} at epoch: {round(pixel_roc_observer.max_epoch, 2)}')
+                    break
 
 
 def fcdd_loss(anorm_heatmap, score_map, gtmaps, labels):
