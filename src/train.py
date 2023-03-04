@@ -437,9 +437,9 @@ def __norm_anom_loss(loss, gtmaps):
     anom = loss[gtmaps == 1]
     if len(anom) == 0:
         anom = torch.zeros_like(norm)
-    perm1 = torch.randperm(norm.size()[0])
+    perm1 = torch.randperm(norm.size()[0], device=TrainConfigures.device)
     norm = norm[perm1]
-    perm2 = torch.randperm(anom.size()[0])
+    perm2 = torch.randperm(anom.size()[0], device=TrainConfigures.device)
     anom = anom[perm2]
     size = min(norm.size()[0], anom.size()[0])
     loss = 5 - (anom[: size] - norm[: size])

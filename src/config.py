@@ -31,8 +31,7 @@ class TrainConfigures:
     训练迭代多少次
     '''
 
-    # classes = ['bottle', 'cable', 'capsule', 'carpet', 'grid', 'hazelnut', 'leather', 'metal_nut',
-    #            'pill', 'screw', 'tile', 'toothbrush', 'transistor', 'wood', 'zipper']
+    # classes = ['bottle', 'cable', 'capsule', 'carpet', 'grid', 'hazelnut', 'leather', 'metal_nut', 'pill', 'screw', 'tile', 'toothbrush', 'transistor', 'wood', 'zipper']
     classes = ['screw']
     '''
     待训练的类别
