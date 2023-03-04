@@ -32,7 +32,7 @@ class TrainConfigures:
     '''
 
     # classes = ['bottle', 'cable', 'capsule', 'carpet', 'grid', 'hazelnut', 'leather', 'metal_nut', 'pill', 'screw', 'tile', 'toothbrush', 'transistor', 'wood', 'zipper']
-    classes = ['screw']
+    classes = ['bottle']
     '''
     待训练的类别
     '''
