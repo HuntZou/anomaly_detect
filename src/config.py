@@ -37,7 +37,7 @@ class TrainConfigures:
     待训练的类别
     '''
 
-    visualize = False
+    visualize = True
     '''
     是否可视化结果
     '''
