@@ -64,7 +64,7 @@ def main():
             for n_batch, data in enumerate(train_loader):
                 if n_batch % int(len(train_loader) / 10) == 0:
                     print(f'{time.ctime()} epoch: {epoch}, class: {class_name}, progress: {n_batch} of {len(train_loader)}')
-                inputs, labels, gtmaps = data[0].to(TrainConfigures.device), data[1], data[2].to(TrainConfigures.device)
+                inputs, labels, gtmaps = data[0].to(TrainConfigures.device, non_blocking=True), data[1], data[2].to(TrainConfigures.device, non_blocking=True)
                 anorm_heatmap, score_map = net(inputs)
                 optimizer.zero_grad()
                 loss = fcdd_loss(anorm_heatmap, score_map, gtmaps, labels)

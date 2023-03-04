@@ -34,7 +34,7 @@ class BaseADDataset(ABC):
 
     @abstractmethod
     def loaders(self, batch_size: int, shuffle_train=True, shuffle_test=False, num_workers: int = 0) -> Tuple[
-            DataLoader, DataLoader]:
+        DataLoader, DataLoader]:
         """ Implement data loaders of type torch.utils.data.DataLoader for train_set and test_set. """
         pass
 
@@ -65,16 +65,16 @@ class TorchvisionDataset(BaseADDataset):
     def __init__(self, root: str, logger=None):
         super().__init__(root, logger=logger)
 
-    def loaders(self, batch_size: int, shuffle_train=True, shuffle_test=False, num_workers: int = 0, train: bool=True)\
+    def loaders(self, batch_size: int, shuffle_train=True, shuffle_test=False, num_workers: int = 0, train: bool = True) \
             -> Tuple[DataLoader, DataLoader]:
         assert not shuffle_test, \
-            'using shuffled test raises problems with original GT maps for GT datasets, thus disabled atm!' # 使用混合测试会导致GT数据集的原始GT地图出现问题，因此禁用了atm!
+            'using shuffled test raises problems with original GT maps for GT datasets, thus disabled atm!'  # 使用混合测试会导致GT数据集的原始GT地图出现问题，因此禁用了atm!
         # classes = None means all classe
         if train:
             train_loader = DataLoader(dataset=self.train_set, batch_size=batch_size, shuffle=True,
-                                      num_workers=num_workers, pin_memory=True, drop_last=True)
+                                      num_workers=num_workers, pin_memory=True, drop_last=True, prefetch_factor=2)
             test_loader = DataLoader(dataset=self.test_set, batch_size=5, shuffle=False,
-                                     num_workers=num_workers, pin_memory=True, drop_last=True)
+                                     num_workers=num_workers, pin_memory=True, drop_last=True, prefetch_factor=2)
 
             return train_loader, test_loader
         else:
@@ -119,7 +119,7 @@ class TorchvisionDataset(BaseADDataset):
         for c in sorted(set(y.tolist())):
             out.append(x[y == c][:percls])  # 取20个样本
         if len(gts) > 0:
-            assert len(set(gts.reshape(-1).tolist())) <= 2, 'training process assumes zero-one gtmaps' # 训练过程假定gtmaps为0 - 1
+            assert len(set(gts.reshape(-1).tolist())) <= 2, 'training process assumes zero-one gtmaps'  # 训练过程假定gtmaps为0 - 1
             out.append(torch.zeros_like(x[:percls]))  # 生成20个全零形状为x的张量
             for c in sorted(set(y.tolist())):
                 g = gts[y == c][:percls]
@@ -129,7 +129,7 @@ class TorchvisionDataset(BaseADDataset):
         self.logprint('Dataset preview generated.')
         return torch.stack([o[:min(Counter(y.tolist()).values())] for o in out])
 
-    def _generate_artificial_anomalies_train_set(self, supervise_mode: str, noise_mode: str, oe_limit: int ,
+    def _generate_artificial_anomalies_train_set(self, supervise_mode: str, noise_mode: str, oe_limit: int,
                                                  train_set: Dataset, nom_class: int):
         """
         This method generates offline artificial anomalies,
@@ -156,10 +156,10 @@ class TorchvisionDataset(BaseADDataset):
         :return:
         """
         if isinstance(train_set.targets, torch.Tensor):
-            dataset_targets = train_set.targets.clone().data.cpu().numpy()   # 将tensor转换成numpy
+            dataset_targets = train_set.targets.clone().data.cpu().numpy()  # 将tensor转换成numpy
         else:  # e.g. imagenet
             dataset_targets = np.asarray(train_set.targets)
-        train_idx_normal = get_target_label_idx(dataset_targets, self.normal_classes)   # 获取正常样本的索引的列表
+        train_idx_normal = get_target_label_idx(dataset_targets, self.normal_classes)  # 获取正常样本的索引的列表
         generated_noise = norm = None
         if supervise_mode not in ['unsupervised', 'other']:
             self.logprint('Generating artificial anomalies...')  # 打印生成人工异常
@@ -172,7 +172,7 @@ class TorchvisionDataset(BaseADDataset):
             self._train_set = train_set
         elif supervise_mode in ['unsupervised']:  # 如果监督模式为无监督，即训练样本都为正常样本
             if isinstance(train_set, GTMapADDataset):
-                self._train_set = GTSubset(train_set, train_idx_normal)    # _train_set 包括 data,label, gtmap, GTSubset类实例化
+                self._train_set = GTSubset(train_set, train_idx_normal)  # _train_set 包括 data,label, gtmap, GTSubset类实例化
             else:
                 self._train_set = Subset(train_set, train_idx_normal)  # 返回正常的样本  Subset类实例化
         elif supervise_mode in ['noise']:
@@ -196,6 +196,7 @@ class TorchvisionDataset(BaseADDataset):
 
 class ThreeReturnsDataset(Dataset):
     """ Dataset base class returning a tuple of three items as data samples """
+
     @abstractmethod
     def __getitem__(self, index):
         return None, None, None
@@ -205,6 +206,7 @@ class GTMapADDataset(ThreeReturnsDataset):
     """ Dataset base class returning a tuple (input, label, ground-truth map) as data samples
     返回元组(input, label, ground-truth map)作为数据样本的Dataset基类
     """
+
     @abstractmethod
     def __getitem__(self, index):
         x, y, gtmap = None, None, None
@@ -221,6 +223,7 @@ class GTMapADDatasetExtension(GTMapADDataset):
     This class is used to extend a regular torch dataset such that is returns the corresponding ground-truth map
     in addition to the usual (input, label) tuple.
     """
+
     def __init__(self, dataset: Dataset, gtmaps: torch.Tensor, overwrite=True):
         """
         :param dataset: a regular torch dataset
