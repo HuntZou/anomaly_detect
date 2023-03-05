@@ -11,6 +11,7 @@ from skimage.measure import label, regionprops
 from sklearn.metrics import roc_auc_score, auc, precision_recall_curve
 from torch.utils.tensorboard import SummaryWriter
 
+from loguru import logger
 from modules.ad_module import STLNet_AD
 from config import TrainConfigures
 from datasets import load_dataset
@@ -26,7 +27,7 @@ board = SummaryWriter(path_join(project_dir, "output", "logs"))
 def main():
     for class_name_idx in range(0, len(TrainConfigures.classes)):
         class_name = TrainConfigures.classes[class_name_idx]
-        print(f"{time.ctime()} start training class: {class_name}")
+        logger.info(f'start training class: {class_name}')
 
         dataset = 'BTAD'
         supervise_mode = 'malformed_normal_gt'
@@ -46,7 +47,7 @@ def main():
         # load pre-train module if exist
         pre_module_path = os.path.join(utils.get_dir(project_dir, "output", "modules"), f'{class_name}.pth')
         if os.path.exists(pre_module_path):
-            print(f'load pre-train module: {class_name}')
+            logger.info(f'load pre-train module: {class_name}')
             net.load_state_dict(torch.load(pre_module_path))
 
         net = net.to(TrainConfigures.device)
@@ -63,7 +64,7 @@ def main():
             loss_mean = 0
             for n_batch, data in enumerate(train_loader):
                 if n_batch % int(len(train_loader) / 10) == 0:
-                    print(f'{time.ctime()} epoch: {epoch}, class: {class_name}, progress: {n_batch} of {len(train_loader)}')
+                    logger.info(f'epoch: {epoch}, class: {class_name}, progress: {n_batch} of {len(train_loader)}')
                 inputs, labels, gtmaps = data[0].to(TrainConfigures.device, non_blocking=True), data[1], data[2].to(TrainConfigures.device, non_blocking=True)
                 anorm_heatmap, score_map = net(inputs)
                 optimizer.zero_grad()
@@ -190,22 +191,22 @@ def main():
                     b = precision + recall
                     f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
                     det_threshold = thresholds[np.argmax(f1)]
-                    print('Optimal DET Threshold: {:.2f}'.format(det_threshold))
+                    logger.info('Optimal DET Threshold: {:.2f}'.format(det_threshold))
                     precision, recall, thresholds = precision_recall_curve(gt_mask.flatten(), score_maps.flatten())
                     a = 2 * precision * recall
                     b = precision + recall
                     f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
                     seg_threshold = thresholds[np.argmax(f1)]
-                    print('Optimal SEG Threshold: {:.2f}'.format(seg_threshold))
+                    logger.info('Optimal SEG Threshold: {:.2f}'.format(seg_threshold))
                     # visualize.export_groundtruth(c, test_image_list, gt_mask)
                     # visualize.export_scores(c, test_image_list, score_maps, seg_threshold)
                     visualize.export_test_images(class_name, test_image_list, gt_mask, score_maps, seg_threshold)
                     # visualize.export_hist(c, gt_mask, score_maps, seg_threshold)
 
                 if best_label_roc_already and best_pixel_roc_already:
-                    print(f'class: {class_name} train done at epoch: {epoch}, '
-                          f'best_label_roc: {round(label_roc_observer.max_score, 2)} at epoch: {round(label_roc_observer.max_epoch, 2)}, '
-                          f'best_pixel_roc: {round(pixel_roc_observer.max_score, 2)} at epoch: {round(pixel_roc_observer.max_epoch, 2)}')
+                    logger.info(f'class: {class_name} train done at epoch: {epoch}, '
+                                f'best_label_roc: {round(label_roc_observer.max_score, 2)} at epoch: {round(label_roc_observer.max_epoch, 2)}, '
+                                f'best_pixel_roc: {round(pixel_roc_observer.max_score, 2)} at epoch: {round(pixel_roc_observer.max_epoch, 2)}')
                     break
 
 
@@ -606,7 +607,7 @@ class ScoreObserver:
         return True if max score haven't been changed after threshold times
         """
 
-        print(f'{time.ctime()} update: {self.name}/{self.cls}, epoch: {epoch}/{self.max_epoch}, score: {round(score, 2)}/{round(self.max_score, 2)}')
+        logger.info(f'update: {self.name}/{self.cls}, epoch: {epoch}/{self.max_epoch}, score: {round(score, 2)}/{round(self.max_score, 2)}')
 
         self.last_epoch = epoch
         self.last_score = score
@@ -616,7 +617,7 @@ class ScoreObserver:
 
             if epoch > 0:
                 torch.save(module.state_dict(), os.path.join(utils.get_dir(project_dir, 'output', 'modules'), f'{self.cls}.pth'))
-                print(f'update best result of {self.cls}, module saved')
+                logger.info(f'update best result of {self.cls}, module saved')
 
             self.update_count = self.threshold
         elif epoch > self.min_train_epoch:
