@@ -174,7 +174,7 @@ class STLNet_AD(nn.Module):
 
     def forward(self, x):
         x, low_level_features_1, low_level_features_2, low_level_features_3 = self.backbone(x)
-        low_level_features, x_tem = self.STL(self.feature_cat(low_level_features_1, low_level_features_2))
+        low_level_features = self.STL(self.feature_cat(low_level_features_1, low_level_features_2))
         low_level_features_3 = self.self_calibration(low_level_features_3)
         low_level_features = self.feature_cat(low_level_features, low_level_features_3)
         low_level_features = self.conv2(low_level_features)

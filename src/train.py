@@ -204,8 +204,8 @@ def main():
                     # visualize.export_hist(c, gt_mask, score_maps, seg_threshold)
 
                 if best_label_roc_already and best_pixel_roc_already:
-                    logger.info(f'class: {class_name} train done at epoch: {epoch}, '
-                                f'best_label_roc: {round(label_roc_observer.max_score, 2)} at epoch: {round(label_roc_observer.max_epoch, 2)}, '
+                    logger.info(f'class: {class_name} train done at epoch: {epoch}, \t'
+                                f'best_label_roc: {round(label_roc_observer.max_score, 2)} at epoch: {round(label_roc_observer.max_epoch, 2)}, \t'
                                 f'best_pixel_roc: {round(pixel_roc_observer.max_score, 2)} at epoch: {round(pixel_roc_observer.max_epoch, 2)}')
                     break
 

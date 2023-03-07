@@ -11,6 +11,7 @@ from logging import Logger
 from torch.utils.data import DataLoader
 from torch.utils.data import Subset
 from torch.utils.data.dataset import Dataset
+from config import TrainConfigures
 
 
 class BaseADDataset(ABC):
@@ -72,9 +73,11 @@ class TorchvisionDataset(BaseADDataset):
         # classes = None means all classe
         if train:
             train_loader = DataLoader(dataset=self.train_set, batch_size=batch_size, shuffle=True,
-                                      num_workers=num_workers, pin_memory=True, drop_last=True, prefetch_factor=2)
+                                      num_workers=num_workers, pin_memory=True, drop_last=False,
+                                      prefetch_factor=2, persistent_workers=TrainConfigures.worker_num > 0)
             test_loader = DataLoader(dataset=self.test_set, batch_size=5, shuffle=False,
-                                     num_workers=num_workers, pin_memory=True, drop_last=True, prefetch_factor=2)
+                                     num_workers=num_workers, pin_memory=True, drop_last=False,
+                                     prefetch_factor=2, persistent_workers=TrainConfigures.worker_num > 0)
 
             return train_loader, test_loader
         else:

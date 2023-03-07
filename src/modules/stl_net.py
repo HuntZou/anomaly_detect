@@ -333,19 +333,20 @@ class STL(nn.Module):
         super().__init__()
         self.conv_start = ConvBNReLU(in_channel, 512, 1, 1, 0)
         self.tem = TEM(128)
-        self.lbp1 = LBPModule(input_shape=[512, 56, 56], kernel_size=3, output_channel=64, pool_size=1)
-        self.lbp2 = LBPModule(input_shape=[512, 56, 56], kernel_size=7, output_channel=64, pool_size=3)
-        self.lbp3 = LBPModule(input_shape=[512, 56, 56], kernel_size=11, output_channel=64, pool_size=5)
-        self.dropout = nn.Dropout(0.1)
+        lbp_input_shape = [768, int(TrainConfigures.crop_size[0] / 8), int(TrainConfigures.crop_size[1] / 8)]
+        self.lbp1 = LBPModule(input_shape=lbp_input_shape, kernel_size=3, output_channel=64, pool_size=1)
+        self.lbp2 = LBPModule(input_shape=lbp_input_shape, kernel_size=7, output_channel=64, pool_size=3)
+        self.lbp3 = LBPModule(input_shape=lbp_input_shape, kernel_size=11, output_channel=64, pool_size=5)
 
     def forward(self, x):
         x = self.conv_start(x)
+        x_tem = self.tem(x)
+        x = torch.cat([x_tem, x], dim=1)
         x_lbp1 = self.lbp1(x)
         x_lbp2 = self.lbp2(x)
         x_lbp3 = self.lbp3(x)
-        x_tem = self.tem(x)
-        x = torch.cat([x, x_tem, x_lbp1, x_lbp2, x_lbp3], dim=1)
-        return x, x_tem
+        x = torch.cat([x, x_lbp1, x_lbp2, x_lbp3], dim=1)
+        return x
 
 
 def initialize_weights(*models):
