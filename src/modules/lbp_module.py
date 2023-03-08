@@ -61,7 +61,7 @@ class LBPModule(torch.nn.Module):
 
         # 这两行代码计算量阶中每个阶的上下界
         common_difference = (x.amax(axis=(-1, -2)) - x.amin(axis=(-1, -2))) / self.quant_len
-        measure = (torch.einsum('i,jk->ijk', torch.arange(self.quant_len + 1).to(TrainConfigures.device), common_difference) + x.amin(axis=(-1, -2))).permute(1, 0, 2)
+        measure = (torch.einsum('i,jk->ijk', torch.arange(self.quant_len + 1, device=TrainConfigures.device), common_difference) + x.amin(axis=(-1, -2))).permute(1, 0, 2)
 
         x0 = x[:, 0, ...].reshape([x.shape[0], -1]).unsqueeze(dim=1).repeat([1, self.quant_len, 1])
         x0[(x0 - measure[:, :-1, :1] < 0) | (x0 - measure[:, 1:, :1] > 0)] = 0
@@ -75,7 +75,9 @@ class LBPModule(torch.nn.Module):
 
         x = torch.nn.functional.conv2d(x, self.masks) / torch.sum(x)
         x = x.squeeze(-1)
-        levels = self.idxs.unsqueeze(0).repeat([x.shape[0], 1, 1])
+        # 将量阶的阶合并到统计数量中去，这里应该想办法直接计算measure后倒数第二维的笛卡尔积，但每找到直接计算的方法，曲线救国
+        levels = self.idxs.unsqueeze(0).repeat([x.shape[0], 1, 1]) + 1
+        levels = (levels.permute([0, 2, 1]) * measure[:, 1:2, :].permute([0, 2, 1])).permute([0, 2, 1])
         x = torch.cat([levels, x], dim=2)
 
         x = x.reshape([batch_size, 4, self.quant_len ** 2, 3])
