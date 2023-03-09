@@ -166,12 +166,12 @@ class ADMvTec(TorchvisionDataset):
             img_gt_transform = MultiCompose([
                 transforms.RandomChoice([
                     transforms.RandomCrop(TrainConfigures.crop_size, padding=0),
-                    transforms.Resize(TrainConfigures.crop_size, Image.NEAREST)
+                    transforms.Resize(TrainConfigures.crop_size, transforms.InterpolationMode.NEAREST)
                 ]),
                 transforms.ToTensor(),
             ])
             img_gt_test_transform = MultiCompose([
-                transforms.Resize(TrainConfigures.crop_size, Image.NEAREST),
+                transforms.Resize(TrainConfigures.crop_size, transforms.InterpolationMode.NEAREST),
                 transforms.ToTensor()
             ])
             test_transform = transforms.Compose([

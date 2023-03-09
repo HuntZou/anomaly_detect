@@ -195,7 +195,6 @@ class LBP(nn.Module):
         self.out = ConvBNReLU(256, 256, 1, 1, 0, mode='1d')
 
     def forward(self, x):
-        print(f"x shape: {x.shape}")
         x = self.conv1(x)
         x = self.conv2(x)
         N, C, H, W = x.shape
@@ -204,13 +203,10 @@ class LBP(nn.Module):
         self.size_h = int(H / 3)  # 以scale为1的尺寸大小
         self.size_w = int(W / 3)
         cos_sim = F.adaptive_avg_pool2d(cos_sim, (self.size_h * 3, self.size_w * 3))
-        print(f"cos_sim shape: {cos_sim.shape}")
         cos_sim = cos_sim.reshape(N, 3, self.size_h, 3, self.size_w)
-        print(f"cos_sim shape: {cos_sim.shape}")
         cos_sim = cos_sim.permute(0, 1, 3, 2, 4)  # 分割成每一块
         cos_sim = cos_sim.reshape(N, 9, int(self.size_h * self.size_w))
         cos_sim = cos_sim.permute(0, 2, 1)  # Nxsize_h*size_wx9
-        print(f"cos_sim shape: {cos_sim.shape}")
         N, H1, W1 = cos_sim.size()
         cos_sim = (cos_sim > cos_sim[:, :, 4].unsqueeze(-1).expand(N, H1, W1)).float()
         cos_sim = cos_sim[:, :, 0] + cos_sim[:, :, 1] * 2 + cos_sim[:, :, 2] * 4 + cos_sim[:, :, 3] * 8 + cos_sim[:, :, 5] * 16 + cos_sim[:, :, 6] * 32 + cos_sim[:, :, 7] * 64 + cos_sim[:, :, 8] * 128

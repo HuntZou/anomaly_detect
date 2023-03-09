@@ -6,6 +6,7 @@ import numpy as np
 import torch
 
 from config import TrainConfigures
+from loguru import logger
 
 RESULT_DIR = './results'
 WEIGHT_DIR = './weights'
@@ -39,7 +40,7 @@ def save_weights(encoder, decoders, model_name, run_date):
     filename = '{}_{}.pt'.format(model_name, run_date)
     path = os.path.join(WEIGHT_DIR, filename)
     torch.save(state, path)
-    print('Saving weights to {}'.format(filename))
+    logger.info('Saving weights to {}'.format(filename))
 
 
 def load_weights(encoder, decoders, filename):
@@ -47,7 +48,7 @@ def load_weights(encoder, decoders, filename):
     state = torch.load(path)
     encoder.load_state_dict(state['encoder_state_dict'], strict=False)
     decoders = [decoder.load_state_dict(state, strict=False) for decoder, state in zip(decoders, state['decoder_state_dict'])]
-    print('Loading weights from {}'.format(filename))
+    logger.info('Loading weights from {}'.format(filename))
 
 
 def adjust_learning_rate(c, optimizer, epoch):

@@ -1,7 +1,5 @@
 import os
 import tarfile
-import time
-from logging import Logger
 from typing import Callable
 from typing import Tuple
 
@@ -13,6 +11,7 @@ from PIL import Image
 from torchvision.datasets import VisionDataset
 from torchvision.datasets.imagenet import check_integrity, verify_str_arg
 from config import TrainConfigures
+from loguru import logger
 
 from datasets.bases import GTMapADDataset
 
@@ -39,7 +38,6 @@ class MvTec(VisionDataset, GTMapADDataset):
             normal_classes=(),
             nominal_label=0,
             anomalous_label=1,
-            logger: Logger = None,
             enlarge: bool = False,
             flag: bool = False,
     ):
@@ -95,7 +93,7 @@ class MvTec(VisionDataset, GTMapADDataset):
         # download, unzip, process, serialize dataset
         self.process_data(shape=TrainConfigures.crop_size)
 
-        print(f"load {split} dataset from {self.data_file}")
+        logger.info(f"load {split} dataset from {self.data_file}")
         dataset_dict = torch.load(self.data_file)
         self.anomaly_label_strings = dataset_dict['anomaly_label_strings']
         if self.split == 'train':
@@ -114,7 +112,7 @@ class MvTec(VisionDataset, GTMapADDataset):
         if self.nominal_label != 0:
             print('Swapping labels, i.e. anomalies are 0 and nominals are 1, same for GT maps.')
             assert -3 not in [self.nominal_label, self.anom_label]
-        print(f'load {split} dataset complete.')
+        logger.info(f'load {split} dataset complete.')
 
         self.center_ = transforms.Compose([transforms.ToPILImage(),
                                            transforms.CenterCrop(260),
@@ -172,7 +170,7 @@ class MvTec(VisionDataset, GTMapADDataset):
         assert shape is not None or cls is not None, 'original shape requires a class'
         # 如果admvtec_224×224.pt文件存在，下面语句不执行
         if not check_integrity(self.data_file if shape is not None else self.orig_data_file(cls)):
-            print(f'{time.ctime()} serialize dataset, shape: {shape}')
+            logger.info(f'serialize dataset, shape: {shape}')
             # 解压文件
             extract_dir = self.extract_archive(os.path.join(self.root, self.dataset_file_name))
             train_data, train_labels = [], []
@@ -181,7 +179,7 @@ class MvTec(VisionDataset, GTMapADDataset):
 
             for lbl_idx, lbl in enumerate(TrainConfigures.classes if cls is None else [TrainConfigures.classes[cls]]):
                 if verbose:
-                    print('Processing data for label {}'.format(lbl))
+                    logger.info('Processing data for label {}'.format(lbl))
                 for anomaly_label in sorted(os.listdir(os.path.join(extract_dir, lbl, 'test'))):  # os.listdir 返回路径下文件名组成的列表
                     for img_name in sorted(os.listdir(os.path.join(extract_dir, lbl, 'test', anomaly_label))):  # 返回异常文件下的图片名
                         with open(os.path.join(extract_dir, lbl, 'test', anomaly_label, img_name), 'rb') as f:
@@ -242,7 +240,7 @@ class MvTec(VisionDataset, GTMapADDataset):
             #         os.chmod(os.path.join(dirpath, filename), 0o755)
             # shutil.rmtree(extract_dir)
         else:
-            print(f'Dataset has been processed: {self.data_file if shape is not None else self.orig_data_file(cls)}')
+            logger.info(f'Dataset has been processed: {self.data_file if shape is not None else self.orig_data_file(cls)}')
             return
 
     def get_original_gtmaps_normal_class(self) -> torch.Tensor:
@@ -303,7 +301,7 @@ class MvTec(VisionDataset, GTMapADDataset):
 
         if not os.path.exists(extract_dir):
             with tarfile.open(dataset_tar_file, 'r:xz') as tar:
-                print(f"extracting dataset tar file: {dataset_tar_file} to {extract_dir}")
+                logger.info(f"extracting dataset tar file: {dataset_tar_file} to {extract_dir}")
                 tar.extractall(path=extract_dir)
 
         return extract_dir

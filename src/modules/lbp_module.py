@@ -57,6 +57,7 @@ class LBPModule(torch.nn.Module):
         x = self.clamp(x)
 
         # 量阶--------------start
+        # 第二维中的2表示以中心点为对称轴的两个点，后面计算类灰度共生矩阵时使用的就是这两个点作为表的横纵坐标
         x = x.reshape([batch_size * 4, 2, x.shape[-2], x.shape[-1]])
 
         # 这两行代码计算量阶中每个阶的上下界

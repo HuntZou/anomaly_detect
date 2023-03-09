@@ -1,4 +1,4 @@
-import datetime
+import datetime, time
 import os
 
 import matplotlib
@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from skimage import morphology
 from skimage.segmentation import mark_boundaries
+from loguru import logger
 
 OUT_DIR = '../output/viz/'
 
@@ -110,7 +111,8 @@ def export_scores(class_name, test_img, scores, threshold):
 def export_test_images(class_name, test_img, gts, scores, threshold):
     image_dirs = os.path.join(OUT_DIR, "mvtec", class_name)
     if not os.path.isdir(image_dirs):
-        print('Exporting images...')
+        logger.info(f'start export test images to: {image_dirs}')
+        export_start_time = time.time()
         os.makedirs(image_dirs, exist_ok=True)
         num = len(test_img)
         kernel = morphology.disk(4)
@@ -149,3 +151,5 @@ def export_test_images(class_name, test_img, gts, scores, threshold):
             image_file = os.path.join(image_dirs, '{:08d}.jpg'.format(i))
             fig_img.savefig(image_file, format='jpg')
             plt.close()
+        logger.info(f'Export test image done, cost time: {time.time() - export_start_time}')
+

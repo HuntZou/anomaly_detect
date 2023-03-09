@@ -8,15 +8,15 @@ from modules.stl_net import STL
 class ResNet(nn.Module):
     def __init__(self, in_channels=3, output_stride=8, backbone='resnet50', pretrained=True):
         super(ResNet, self).__init__()
-        model = getattr(models, backbone)(pretrained)
+        model = models.resnet50(weights='ResNet50_Weights.DEFAULT')
         model.conv1 = torch.nn.Conv2d(12, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
 
+        # resnet 残差之前还有4个层
         self.layer0 = nn.Sequential(*list(model.children())[:4])
 
         self.layer1 = model.layer1
         self.layer2 = model.layer2
         self.layer3 = model.layer3
-        # self.layer4 = model.layer4
 
     def forward(self, x):
         x = torch.cat([
@@ -32,7 +32,6 @@ class ResNet(nn.Module):
         low_level_features_2 = x
         x = self.layer3(x)
         low_level_features_3 = x
-        # x = self.layer4(x)
 
         return x, low_level_features_1, low_level_features_2, low_level_features_3
 
