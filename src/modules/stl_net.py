@@ -329,7 +329,8 @@ class STL(nn.Module):
         super().__init__()
         self.conv_start = ConvBNReLU(in_channel, 512, 1, 1, 0)
         self.tem = TEM(128)
-        lbp_input_shape = [768, int(TrainConfigures.crop_size[0] / 8), int(TrainConfigures.crop_size[1] / 8)]
+        # 除以4是因为resnet会在一开始将图片缩小到1/4
+        lbp_input_shape = [768, int(TrainConfigures.crop_size[0] / 4), int(TrainConfigures.crop_size[1] / 4)]
         self.lbp1 = LBPModule(input_shape=lbp_input_shape, kernel_size=3, output_channel=64, pool_size=1)
         self.lbp2 = LBPModule(input_shape=lbp_input_shape, kernel_size=7, output_channel=64, pool_size=3)
         self.lbp3 = LBPModule(input_shape=lbp_input_shape, kernel_size=11, output_channel=64, pool_size=5)

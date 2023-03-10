@@ -1,6 +1,5 @@
 import itertools
 import os
-import time
 from os.path import join as path_join
 
 import torch
@@ -21,12 +20,11 @@ import utils
 
 project_dir = os.path.abspath("../")
 
-board = SummaryWriter(path_join(project_dir, "output", "logs"))
-
 
 def main():
     for class_name_idx in range(0, len(TrainConfigures.classes)):
         class_name = TrainConfigures.classes[class_name_idx]
+        board = SummaryWriter(path_join(project_dir, "output", "logs", class_name))
         logger.info(f'start training class: {class_name}')
 
         dataset = 'BTAD'
@@ -74,7 +72,10 @@ def main():
                 loss_mean += loss.item() / len(train_loader)
             lr_optimizer.step()
 
-            board.add_scalar(f"{class_name}/train_loss_mean", loss_mean, epoch)
+            board.add_scalar(f"loss/train_loss_mean", loss_mean, epoch)
+            total, non_zero = count_non_zeros(net)
+            board.add_scalar(f"variable/non_zero_ratio", round(non_zero / total, 2), epoch)
+            board.add_scalar(f"variable/non_zero_count", non_zero, epoch)
 
             if epoch % TrainConfigures.test_interval == 0:
                 net = net.eval()
@@ -102,12 +103,12 @@ def main():
                 gt_labels = np.asarray(gt_label_list, dtype=bool)
                 label_roc = roc_auc_score(gt_labels, score_labels)
                 best_label_roc_already = label_roc_observer.update(100.0 * label_roc, epoch, net)
-                board.add_scalar(f"{class_name}/label_roc", label_roc, epoch)
+                board.add_scalar(f"ROC/label_roc", label_roc, epoch)
 
                 gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
                 pixel_roc = roc_auc_score(gt_mask.flatten(), score_maps.flatten())
                 best_pixel_roc_already = pixel_roc_observer.update(100.0 * pixel_roc, epoch, net)
-                board.add_scalar(f"{class_name}/pixel_roc", pixel_roc, epoch)
+                board.add_scalar(f"ROC/pixel_roc", pixel_roc, epoch)
 
                 if TrainConfigures.calc_aupro:
                     """
@@ -180,33 +181,27 @@ def main():
                     pros_mean_selected = pros_mean[idx]
                     seg_pro_auc = auc(fprs_selected, pros_mean_selected)
                     _ = pixel_pro_observer.update(100.0 * seg_pro_auc, epoch, net)
-                    #
 
-                    # save_results(det_roc_obs, seg_roc_obs, seg_pro_obs, "mvtec", class_name, run_date)
-                    # export visualuzations
-
-                if TrainConfigures.visualize and (best_label_roc_already and best_pixel_roc_already):
-                    precision, recall, thresholds = precision_recall_curve(gt_labels, score_labels)
-                    a = 2 * precision * recall
-                    b = precision + recall
-                    f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
-                    det_threshold = thresholds[np.argmax(f1)]
-                    logger.info('Optimal DET Threshold: {:.2f}'.format(det_threshold))
-                    precision, recall, thresholds = precision_recall_curve(gt_mask.flatten(), score_maps.flatten())
-                    a = 2 * precision * recall
-                    b = precision + recall
-                    f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
-                    seg_threshold = thresholds[np.argmax(f1)]
-                    logger.info('Optimal SEG Threshold: {:.2f}'.format(seg_threshold))
-                    # visualize.export_groundtruth(c, test_image_list, gt_mask)
-                    # visualize.export_scores(c, test_image_list, score_maps, seg_threshold)
-                    visualize.export_test_images(class_name, test_image_list, gt_mask, score_maps, seg_threshold)
-                    # visualize.export_hist(c, gt_mask, score_maps, seg_threshold)
-
+                # got best result
                 if best_label_roc_already and best_pixel_roc_already:
+                    board.add_graph(net, torch.randn_like(inputs, device=TrainConfigures.device))
                     logger.info(f'class: {class_name} train done at epoch: {epoch}, \t'
                                 f'best_label_roc: {round(label_roc_observer.max_score, 2)} at epoch: {round(label_roc_observer.max_epoch, 2)}, \t'
                                 f'best_pixel_roc: {round(pixel_roc_observer.max_score, 2)} at epoch: {round(pixel_roc_observer.max_epoch, 2)}')
+                    if TrainConfigures.visualize:
+                        precision, recall, thresholds = precision_recall_curve(gt_labels, score_labels)
+                        a = 2 * precision * recall
+                        b = precision + recall
+                        f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
+                        det_threshold = thresholds[np.argmax(f1)]
+                        logger.info('Optimal LABEL Threshold: {:.2f}'.format(det_threshold))
+                        precision, recall, thresholds = precision_recall_curve(gt_mask.flatten(), score_maps.flatten())
+                        a = 2 * precision * recall
+                        b = precision + recall
+                        f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
+                        seg_threshold = thresholds[np.argmax(f1)]
+                        logger.info('Optimal PIXEL Threshold: {:.2f}'.format(seg_threshold))
+                        visualize.export_test_images(class_name, test_image_list, gt_mask, score_maps, seg_threshold)
                     break
 
 
@@ -677,6 +672,17 @@ def L2_score(u, test_output):
     score = torch.norm(score, p=2, dim=1)
 
     return score
+
+
+def count_non_zeros(model):
+    nonzero = total = 0
+    for name, p in model.named_parameters():
+        tensor = p.data.cpu().numpy()
+        nz_count = np.count_nonzero(tensor)
+        total_params = np.prod(tensor.shape)
+        nonzero += nz_count
+        total += total_params
+    return total, nonzero
 
 
 if __name__ == '__main__':

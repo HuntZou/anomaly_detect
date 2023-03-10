@@ -32,12 +32,12 @@ class TrainConfigures:
     '''
 
     # classes = ['bottle', 'cable', 'capsule', 'carpet', 'grid', 'hazelnut', 'leather', 'metal_nut', 'pill', 'screw', 'tile', 'toothbrush', 'transistor', 'wood', 'zipper']
-    classes = ['bottle']
+    classes = ['screw', 'carpet', 'capsule', 'metal_nut', 'pill', 'wood', 'transistor', 'cable', 'leather', 'grid', 'tile', 'bottle', 'hazelnut', 'toothbrush', 'zipper']
     '''
     待训练的类别
     '''
 
-    visualize = True
+    visualize = False
     '''
     是否可视化结果
     '''
