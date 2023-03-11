@@ -16,12 +16,12 @@ class TrainConfigures:
     模型训练设备
     '''
 
-    batch_size = 2
+    batch_size = 60
     '''
     单次训练批次数量
     '''
 
-    worker_num = 0
+    worker_num = 10
     '''
     pytorch数据集预加载线程数
     '''

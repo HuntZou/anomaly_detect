@@ -83,5 +83,5 @@ def get_dir(*folders):
     folder = os.path.join(*folders)
     if not os.path.exists(folder):
         pathlib.Path(folder).mkdir(parents=True, exist_ok=True)
-        print(f"create dir: {folder}")
+        logger.info(f"create dir: {folder}")
     return folder

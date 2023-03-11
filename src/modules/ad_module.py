@@ -176,10 +176,10 @@ class STLNet_AD(nn.Module):
         low_level_features = self.STL(self.feature_cat(low_level_features_1, low_level_features_2))
         low_level_features_3 = self.self_calibration(low_level_features_3)
         low_level_features = self.feature_cat(low_level_features, low_level_features_3)
-        low_level_features = self.conv2(low_level_features)
+        low_level_features = torch.sigmoid(self.conv2(low_level_features))
 
-        anorm_heatmap = self.conv_final(low_level_features)
-        score_map = self.conv_score(anorm_heatmap)
+        anorm_heatmap = torch.sigmoid(self.conv_final(low_level_features))
+        score_map = nn.functional.leaky_relu(self.conv_score(anorm_heatmap))
 
         return anorm_heatmap, score_map
 

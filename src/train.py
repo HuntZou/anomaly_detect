@@ -43,10 +43,10 @@ def main():
         net = STLNet_AD(in_channels=3, pretrained=True, output_stride=16)
 
         # load pre-train module if exist
-        pre_module_path = os.path.join(utils.get_dir(project_dir, "output", "modules"), f'{class_name}.pth')
+        pre_module_path = os.path.join(utils.get_dir(project_dir, "output", "modules"), f'{class_name}_{"_".join([str(i) for i in TrainConfigures.crop_size])}.pth')
         if os.path.exists(pre_module_path):
             logger.info(f'load pre-train module: {class_name}')
-            net.load_state_dict(torch.load(pre_module_path))
+            net.load_state_dict(torch.load(pre_module_path, map_location=TrainConfigures.device))
 
         net = net.to(TrainConfigures.device)
         optimizer = optim.SGD(net.parameters(), lr=TrainConfigures.learn_rate, weight_decay=TrainConfigures.weight_decay, momentum=0.9, nesterov=True)
@@ -62,7 +62,7 @@ def main():
             loss_mean = 0
             for n_batch, data in enumerate(train_loader):
                 if n_batch % int(len(train_loader) / 10) == 0:
-                    logger.info(f'epoch: {epoch}, class: {class_name}, progress: {n_batch} of {len(train_loader)}')
+                    logger.info(f'epoch: {epoch}, \t class: {class_name}, \t process: {n_batch} of {len(train_loader)}, \t progress: {round(n_batch / len(train_loader), 2) * 100}%')
                 inputs, labels, gtmaps = data[0].to(TrainConfigures.device, non_blocking=True), data[1], data[2].to(TrainConfigures.device, non_blocking=True)
                 anorm_heatmap, score_map = net(inputs)
                 optimizer.zero_grad()
@@ -84,6 +84,7 @@ def main():
                 gt_mask_list = list()
                 score_maps = list()
                 with torch.no_grad():
+                    logger.info(f'start testing, test dataset length: {len(test_loader)}')
                     for n_batch, data in enumerate(test_loader):
                         inputs, labels, masks = data
                         test_image_list.extend(t2np(inputs))
@@ -103,12 +104,12 @@ def main():
                 gt_labels = np.asarray(gt_label_list, dtype=bool)
                 label_roc = roc_auc_score(gt_labels, score_labels)
                 best_label_roc_already = label_roc_observer.update(100.0 * label_roc, epoch, net)
-                board.add_scalar(f"ROC/label_roc", label_roc, epoch)
+                board.add_scalar("ROC/label_roc", label_roc, epoch)
 
                 gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
                 pixel_roc = roc_auc_score(gt_mask.flatten(), score_maps.flatten())
                 best_pixel_roc_already = pixel_roc_observer.update(100.0 * pixel_roc, epoch, net)
-                board.add_scalar(f"ROC/pixel_roc", pixel_roc, epoch)
+                board.add_scalar("ROC/pixel_roc", pixel_roc, epoch)
 
                 if TrainConfigures.calc_aupro:
                     """
@@ -611,7 +612,7 @@ class ScoreObserver:
             self.max_epoch = epoch
 
             if epoch > 0:
-                torch.save(module.state_dict(), os.path.join(utils.get_dir(project_dir, 'output', 'modules'), f'{self.cls}.pth'))
+                torch.save(module.state_dict(), os.path.join(utils.get_dir(project_dir, 'output', 'modules'), f'{self.cls}_{"_".join([str(i) for i in TrainConfigures.crop_size])}.pth'))
                 logger.info(f'update best result of {self.cls}, module saved')
 
             self.update_count = self.threshold
