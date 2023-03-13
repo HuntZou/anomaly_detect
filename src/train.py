@@ -86,7 +86,7 @@ def main():
                 with torch.no_grad():
                     for n_batch, data in enumerate(test_loader):
                         if n_batch % int(len(test_loader) / 3) == 0:
-                            print(f'test {class_name} model,\tprocess: {n_batch} of {len(test_loader)},\tprogress: {int(round(n_batch / len(test_loader), 2) * 100)}%')
+                            logger.info(f'test {class_name} model,\tprocess: {n_batch} of {len(test_loader)},\tprogress: {int(round(n_batch / len(test_loader), 2) * 100)}%')
                         inputs, labels, masks = data
                         test_image_list.extend(t2np(inputs))
                         gt_label_list.extend(t2np(labels))
