@@ -111,11 +111,10 @@ def export_scores(class_name, test_img, scores, threshold):
 def export_test_images(class_name, test_img, gts, scores, threshold):
     image_dirs = os.path.join(OUT_DIR, "mvtec", class_name)
     if not os.path.isdir(image_dirs):
-        logger.info(f'start export test images to: {image_dirs}')
+        logger.info(f'start export {len(test_img)} test images to: {os.path.abspath(image_dirs)}')
         export_start_time = time.time()
         os.makedirs(image_dirs, exist_ok=True)
         num = len(test_img)
-        kernel = morphology.disk(4)
         scores_norm = 1.0 / scores.max()
         for i in range(num):
             img = test_img[i]
@@ -133,13 +132,6 @@ def export_test_images(class_name, test_img, gts, scores, threshold):
             score_img = mark_boundaries(img, score_mask, color=(1, 0, 0), mode='thick')
             score_map = (255.0 * scores[i] * scores_norm).astype(np.uint8)
             fig_img, ax_img = plt.subplots(2, 2)
-            # for ax_i in ax_img:
-            #     ax_i.axes.xaxis.set_visible(False)
-            #     ax_i.axes.yaxis.set_visible(False)
-            #     ax_i.spines['top'].set_visible(False)
-            #     ax_i.spines['right'].set_visible(False)
-            #     ax_i.spines['bottom'].set_visible(False)
-            #     ax_i.spines['left'].set_visible(False)
             ax_img[0][0].set_title('original image')
             ax_img[0][0].imshow(img)
             ax_img[0][1].set_title('ground truth')

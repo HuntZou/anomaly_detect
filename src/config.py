@@ -8,7 +8,7 @@ class TrainConfigures:
     # dataset_path = "/mnt/home/y21301045/datasets"
     dataset_path = r'D:\Datasets\mvtec'
     '''
-    数据集位置
+    数据集位置（mvtec_anomaly_detection.tar.xz 存放位置）
     '''
 
     device = torch.device(f'cuda:0') if torch.cuda.is_available() else torch.device('cpu')
@@ -16,12 +16,12 @@ class TrainConfigures:
     模型训练设备
     '''
 
-    batch_size = 60
+    batch_size = 2
     '''
     单次训练批次数量
     '''
 
-    worker_num = 10
+    worker_num = 0
     '''
     pytorch数据集预加载线程数
     '''
@@ -31,7 +31,7 @@ class TrainConfigures:
     训练迭代多少次
     '''
 
-    # classes = ['bottle', 'cable', 'capsule', 'carpet', 'grid', 'hazelnut', 'leather', 'metal_nut', 'pill', 'screw', 'tile', 'toothbrush', 'transistor', 'wood', 'zipper']
+    # classes = ['carpet', 'grid', 'leather', 'tile', 'wood', 'bottle', 'cable', 'capsule', 'hazelnut', 'metal_nut', 'pill', 'screw', 'toothbrush', 'transistor', 'zipper']
     classes = ['screw', 'carpet', 'capsule', 'metal_nut', 'pill', 'wood', 'transistor', 'cable', 'leather', 'grid', 'tile', 'bottle', 'hazelnut', 'toothbrush', 'zipper']
     '''
     待训练的类别
@@ -42,7 +42,7 @@ class TrainConfigures:
     是否可视化结果
     '''
 
-    crop_size = (448, 448)
+    crop_size = (256, 256)
     '''
     训练过程中要再次将图片resize，太大了就会内存不足
     '''

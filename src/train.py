@@ -62,7 +62,7 @@ def main():
             loss_mean = 0
             for n_batch, data in enumerate(train_loader):
                 if n_batch % int(len(train_loader) / 10) == 0:
-                    logger.info(f'epoch: {epoch}, \t class: {class_name}, \t process: {n_batch} of {len(train_loader)}, \t progress: {round(n_batch / len(train_loader), 2) * 100}%')
+                    logger.info(f'epoch: {epoch}, \t class: {class_name}, \t process: {n_batch} of {len(train_loader)}, \t progress: {int(round(n_batch / len(train_loader), 2) * 100)}%')
                 inputs, labels, gtmaps = data[0].to(TrainConfigures.device, non_blocking=True), data[1], data[2].to(TrainConfigures.device, non_blocking=True)
                 anorm_heatmap, score_map = net(inputs)
                 optimizer.zero_grad()
@@ -84,8 +84,9 @@ def main():
                 gt_mask_list = list()
                 score_maps = list()
                 with torch.no_grad():
-                    logger.info(f'start testing, test dataset length: {len(test_loader)}')
                     for n_batch, data in enumerate(test_loader):
+                        if n_batch % int(len(test_loader) / 3) == 0:
+                            print(f'test {class_name} model,\tprocess: {n_batch} of {len(test_loader)},\tprogress: {int(round(n_batch / len(test_loader), 2) * 100)}%')
                         inputs, labels, masks = data
                         test_image_list.extend(t2np(inputs))
                         gt_label_list.extend(t2np(labels))
@@ -195,13 +196,13 @@ def main():
                         b = precision + recall
                         f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
                         det_threshold = thresholds[np.argmax(f1)]
-                        logger.info('Optimal LABEL Threshold: {:.2f}'.format(det_threshold))
+                        logger.info('Optimal {} LABEL Threshold: {:.2f}'.format(class_name, det_threshold))
                         precision, recall, thresholds = precision_recall_curve(gt_mask.flatten(), score_maps.flatten())
                         a = 2 * precision * recall
                         b = precision + recall
                         f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
                         seg_threshold = thresholds[np.argmax(f1)]
-                        logger.info('Optimal PIXEL Threshold: {:.2f}'.format(seg_threshold))
+                        logger.info('Optimal {} PIXEL Threshold: {:.2f}'.format(class_name, seg_threshold))
                         visualize.export_test_images(class_name, test_image_list, gt_mask, score_maps, seg_threshold)
                     break
 
@@ -603,7 +604,7 @@ class ScoreObserver:
         return True if max score haven't been changed after threshold times
         """
 
-        logger.info(f'update: {self.name}/{self.cls}, epoch: {epoch}/{self.max_epoch}, score: {round(score, 2)}/{round(self.max_score, 2)}')
+        logger.info(f'update: {self.name}/{self.cls},\tepoch: {epoch}/{self.max_epoch},\tscore: {round(score, 2)}/{round(self.max_score, 2)}')
 
         self.last_epoch = epoch
         self.last_score = score
