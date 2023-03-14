@@ -1,5 +1,6 @@
 import itertools
 import os
+import random
 from os.path import join as path_join
 
 import torch
@@ -246,10 +247,8 @@ def __fcdd_pixloss(anorm_heatmap, gtmaps):
     anorm_heatmap = anorm_heatmap ** 2  # 张量间基本计算
     anorm_heatmap = (anorm_heatmap + 1).sqrt() - 1
     anorm_heatmap = F.interpolate(anorm_heatmap, size=TrainConfigures.crop_size, mode='bilinear', align_corners=True)
-    N, C, H, W = anorm_heatmap.size()
-    P = N * C * H * W
-    anorm_heatmap = anorm_heatmap.reshape(P)
-    gtmaps = gtmaps.reshape(P)
+    anorm_heatmap = anorm_heatmap.reshape([-1])
+    gtmaps = gtmaps.reshape([-1])
     # loss_ = __norm_anom_margin(loss, gtmaps)
     norm = anorm_heatmap[gtmaps == 0]  # loss 张量对应于label张量元素为0的相应位置，形成的张量赋值给norma
     # norm = loss[gtmaps==0]-2.5
@@ -408,14 +407,10 @@ def __f_score_sim1(outs, outs1, labels):
 
 
 def __score_loss(score_map, gtmaps):
-    # loss = abs(loss)
-    # loss = torch.sigmoid(loss)
     score_map = torch.norm(score_map, p=2, dim=1).unsqueeze(1)
     score_map = F.interpolate(score_map, size=TrainConfigures.crop_size, mode='bilinear', align_corners=True)
-    N, C, H, W = score_map.size()
-    P = N * C * H * W
-    score_map = score_map.reshape(P)
-    gtmaps = gtmaps.reshape(P)
+    score_map = score_map.reshape([-1])
+    gtmaps = gtmaps.reshape([-1])
     loss_ = __norm_anom_loss(score_map, gtmaps)
     norm = score_map[gtmaps == 0]
     # anom = loss[gtmaps == 1]
@@ -688,4 +683,12 @@ def count_non_zeros(model):
 
 
 if __name__ == '__main__':
+
+    # 设置随机种子，只需要在main函数中设置而不需要在其他文件中重新设置，它会影响整个程序，即使其他文件重新import torch
+    seed = 42
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
     main()
