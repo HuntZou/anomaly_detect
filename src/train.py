@@ -24,6 +24,8 @@ project_dir = os.path.abspath("../")
 
 def main():
     for class_name_idx in range(0, len(TrainConfigures.classes)):
+        manual_random_seed()
+
         class_name = TrainConfigures.classes[class_name_idx]
         board = SummaryWriter(path_join(project_dir, "output", "logs", class_name))
         logger.info(f'start training class: {class_name}')
@@ -682,13 +684,17 @@ def count_non_zeros(model):
     return total, nonzero
 
 
-if __name__ == '__main__':
+def manual_random_seed():
+    """
+    设置随机种子，只需要在main函数中设置而不需要在其他文件中重新设置，它会影响整个程序，即使其他文件重新import torch
+    """
 
-    # 设置随机种子，只需要在main函数中设置而不需要在其他文件中重新设置，它会影响整个程序，即使其他文件重新import torch
-    seed = 42
+    seed = 613
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
 
+
+if __name__ == '__main__':
     main()
