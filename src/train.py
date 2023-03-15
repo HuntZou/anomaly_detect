@@ -565,7 +565,7 @@ def score2(outs):
     outs = torch.norm(outs, p=2, dim=1)
     # outs = torch.sigmoid(outs)
     # outs = abs(outs)
-    outs = outs.squeeze()
+    # outs = outs.squeeze(1)
     return outs
 
 

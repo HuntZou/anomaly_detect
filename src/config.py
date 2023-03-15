@@ -32,7 +32,7 @@ class TrainConfigures:
     '''
 
     # classes = ['carpet', 'grid', 'leather', 'tile', 'wood', 'bottle', 'cable', 'capsule', 'hazelnut', 'metal_nut', 'pill', 'screw', 'toothbrush', 'transistor', 'zipper']
-    classes = ['screw', 'carpet', 'capsule', 'metal_nut', 'pill', 'wood', 'transistor', 'cable', 'leather', 'grid', 'tile', 'bottle', 'hazelnut', 'toothbrush', 'zipper']
+    classes = ['toothbrush', 'capsule', 'screw', 'pill', 'carpet', 'cable', 'transistor', 'metal_nut', 'tile', 'wood', 'bottle', 'hazelnut', 'leather', 'grid', 'zipper']
     '''
     待训练的类别
     '''
