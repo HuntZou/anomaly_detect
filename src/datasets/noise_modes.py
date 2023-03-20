@@ -13,7 +13,7 @@ MODES = [
 
 
 def generate_noise(noise_mode: str, size: torch.Size, oe_limit: int,
-                   logger: Logger = None, datadir: str = None) -> torch.Tensor:
+                   logger: Logger = None, datadir: str = None, img_fg = None) -> torch.Tensor:
     """
     Given a noise_mode, generates noise images.  生成相同大小的noise图像
     :param noise_mode: one of the available noise_nodes, see MODES:
@@ -58,10 +58,10 @@ def generate_noise(noise_mode: str, size: torch.Size, oe_limit: int,
             generated_noise = solid(size)
         elif noise_mode in ['confetti']:
             generated_noise_rgb = confetti_noise(
-                size, 0.000018, ((8, 8), (54, 54)), fillval=255, clamp=False, awgn=0, rotation=45, colorrange=(-256, 0)
+                size, 0.000018, ((8, 8), (54, 54)), fillval=255, clamp=False, awgn=0, rotation=45, colorrange=(-256, 0), img_fg=img_fg
             )
             generated_noise = confetti_noise(
-                size, 0.000012, ((8, 8), (54, 54)), fillval=-255, clamp=False, awgn=0, rotation=45
+                size, 0.000012, ((8, 8), (54, 54)), fillval=-255, clamp=False, awgn=0, rotation=45, img_fg=img_fg
             )
             generated_noise = generated_noise_rgb + generated_noise
             generated_noise = smooth_noise(generated_noise, 25, 5, 1.0)

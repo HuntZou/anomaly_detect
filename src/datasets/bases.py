@@ -192,8 +192,8 @@ class TorchvisionDataset(BaseADDataset):
         if supervise_mode not in ['unsupervised', 'other']:
             self.logprint('Artificial anomalies generated.')
 
-    def _generate_noise(self, noise_mode: str, size: torch.Size, oe_limit: int = None, datadir: str = None) -> torch.Tensor:
-        generated_noise = generate_noise(noise_mode, size, oe_limit, logger=self.logger, datadir=datadir)
+    def _generate_noise(self, noise_mode: str, size: torch.Size, oe_limit: int = None, datadir: str = None, img_fg=None) -> torch.Tensor:
+        generated_noise = generate_noise(noise_mode, size, oe_limit, logger=self.logger, datadir=datadir, img_fg=img_fg)
         return generated_noise
 
 

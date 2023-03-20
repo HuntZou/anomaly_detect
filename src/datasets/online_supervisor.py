@@ -1,4 +1,6 @@
+import os.path
 import random
+import time
 import traceback
 from itertools import cycle
 from typing import List, Tuple
@@ -12,13 +14,14 @@ from datasets.preprocessing import ImgGTTargetTransform
 from PIL import Image
 import math
 import torchvision.transforms as transforms
+import cv2
 
 
 class OnlineSupervisor(ImgGTTargetTransform):
     invert_threshold = 0.025
 
     def __init__(self, ds: TorchvisionDataset, supervise_mode: str, noise_mode: str, oe_limit: int = np.infty,
-                 p: float = 0.5, exclude: List[str] = ()):
+                 p: float = 0.7, exclude: List[str] = ()):
         """
         This class is used as a Transform parameter for torchvision datasets.
         这个类用作torchvision数据集的Transform参数。
@@ -77,13 +80,22 @@ class OnlineSupervisor(ImgGTTargetTransform):
         """
         active = self.supervise_mode not in ['other', 'unsupervised']
         if active and (replace or replace is None and random.random() < self.p):
+
+            # 生成前景区域
+            img_fg = cv2.cvtColor(np.array(img.permute([1, 2, 0])), cv2.COLOR_RGB2GRAY)
+            img_fg = abs(img_fg[:15, :15].mean() - img_fg)
+            img_fg = (img_fg - img_fg.min()) / (img_fg.max() - img_fg.min())
+            _, img_fg = cv2.threshold(img_fg, 80 / 255, 1, cv2.THRESH_BINARY)
+            img_fg = cv2.morphologyEx(img_fg, cv2.MORPH_OPEN, kernel=np.ones([5, 5]))
+            img_fg = cv2.dilate(img_fg, kernel=np.ones([20, 20]))
+
             supervise_mode = self.supervise_mode
             if random.random() < 0.85:
                 """
                 添加cutpaste噪声
                 """
                 img, gt, target = self.CutPasteScar(
-                    img, gt, target, self.ds
+                    img, gt, target, self.ds, img_fg=img_fg
                 )
             else:
                 """
@@ -94,7 +106,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
                 gt = gt.unsqueeze(0).unsqueeze(0).fill_(1).float() if gt is not None else gt  # 在第0维度增加两个维度 gt张量所有值填充为1.0
                 if self.noise_sampler is None:
                     generated_noise = self.ds._generate_noise(
-                        self.noise_mode, img.shape
+                        self.noise_mode, img.shape, img_fg=img_fg
                     )
                 else:
                     try:
@@ -120,7 +132,11 @@ class OnlineSupervisor(ImgGTTargetTransform):
                 else:
                     raise NotImplementedError('Supervise mode {} unknown.'.format(supervise_mode))
                 img = img.squeeze(0) if img is not None else img
+                img = (img - img.min()) / (img.max() - img.min())
                 gt = gt.squeeze(0).squeeze(0) if gt is not None else gt
+
+        # Image.fromarray(np.array(255*((img.permute(1, 2, 0) - img.min()) / (img.max() - img.min()))).astype(np.uint8)).save(os.path.join(r'D:\Tmp\new\toothbrush_color_jitter', f'{int(time.time() * 1000)}.png'))
+        # Image.fromarray(np.array(gt).astype(np.uint8)*255).save(os.path.join(r'D:\Tmp\new\toothbrush_color_jitter', f'{int(time.time() * 1000)}_1.png'))
 
         return img, gt, target
 
@@ -160,6 +176,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
     # def __CutPasteNormal(self, img: torch.Tensor, gt: torch.Tensor, target: int, ds: TorchvisionDataset, area_ratio=[0.02,0.06],
     #                    aspect_ratio=0.3, use_gt: bool = False):
     def __CutPasteNormal(self, img: torch.Tensor,
+                         img_fg,
                          area_ratio=[0.02, 0.06],
                          aspect_ratio=0.3, use_gt: bool = False):
 
@@ -176,12 +193,10 @@ class OnlineSupervisor(ImgGTTargetTransform):
         mytransform = AddSaltPepperNoise(0.02)
 
         augmented = img.copy()
-        count = random.randint(1, 2)
-        for i in range(0, 1):
+        for i in range(random.randint(0, 2)):
 
             # ratio between area_ratio[0] and area_ratio[1]
-            ratio_area = random.uniform(area_ratio[0],
-                                        area_ratio[1]) * w * h  # random.uniform(a,b)输出[a,b]之间的随机浮点数
+            ratio_area = random.uniform(area_ratio[0], area_ratio[1]) * w * h
 
             # sample in log space
             log_ratio = torch.log(torch.tensor((aspect_ratio, 1 / aspect_ratio)))  # 转换为log空间
@@ -189,17 +204,16 @@ class OnlineSupervisor(ImgGTTargetTransform):
                 torch.empty(1).uniform_(log_ratio[0], log_ratio[1])
             ).item()  # 取出单元素张量的元素值，并返回该值，数值类型(如‘整形’)不变
 
-            cut_w = int(round(math.sqrt(ratio_area * aspect)))  # 剪切的宽
-            cut_h = int(round(math.sqrt(ratio_area / aspect)))  # 剪切的高
+            cut_w = int(round(math.sqrt(ratio_area * aspect))) * (np.sum(img_fg)/(img_fg.shape[0] * img_fg.shape[1]))  # 剪切的宽
+            cut_h = int(round(math.sqrt(ratio_area / aspect))) * (np.sum(img_fg)/(img_fg.shape[0] * img_fg.shape[1]))  # 剪切的高
 
-            # one might also want to sample from other images. currently we only sample from the image itself  目前只从图像本身取样
-            from_location_h = int(random.uniform(0, h - cut_h))  # 随机选择裁剪的初始点
-            from_location_w = int(random.uniform(0, w - cut_w))
-            #
-            # from_location_h = int(random.uniform(h / 5, 4 * h / 5 - cut_h))  # 随机选择裁剪的初始点
-            # from_location_w = int(random.uniform(w / 5, 4 * w / 5 - cut_w))
+            # 只从前景部分取patch
+            probs = img_fg.flatten() / np.sum(img_fg)
+            index = np.random.choice(len(probs), p=probs)
+            from_location_w = index % img_fg.shape[1]
+            from_location_h = index // img_fg.shape[1]
 
-            box = [from_location_w, from_location_h, from_location_w + cut_w, from_location_h + cut_h]  # 裁剪框
+            box = (from_location_w, from_location_h, from_location_w + cut_w, from_location_h + cut_h)
             patch = img.crop(box)
             patch = colorJitter(patch)
             # patch = mytransform(patch)
@@ -213,12 +227,10 @@ class OnlineSupervisor(ImgGTTargetTransform):
             rot_deg = random.uniform(rotation[0], rotation[1])
             patch = patch.convert("RGBA").rotate(rot_deg, expand=True)
 
-            # paste
-            to_location_h = int(random.uniform(0, h - patch.size[0]))
-            to_location_w = int(random.uniform(0, w - patch.size[1]))
-            #
-            # to_location_h = int(random.uniform(h / 5, 4 * h / 5 - patch.size[0]))
-            # to_location_w = int(random.uniform(w / 5, 4 * w / 5 - patch.size[1]))
+            # 只粘贴到前景部分
+            index = np.random.choice(len(probs), p=probs)
+            to_location_w = index % img_fg.shape[1]
+            to_location_h = index // img_fg.shape[1]
 
             mask = patch.split()[-1]
             patch = patch.convert("RGB")
@@ -243,10 +255,10 @@ class OnlineSupervisor(ImgGTTargetTransform):
 
         return augmented
 
-    def CutPasteScar(self, img: torch.Tensor, gt: torch.Tensor, target: int, ds: TorchvisionDataset, width=[2,20], height=[10,50], rotation=[-45,45]):
+    def CutPasteScar(self, img: torch.Tensor, gt: torch.Tensor, target: int, ds: TorchvisionDataset, img_fg, width=[2,20], height=[10,50], rotation=[-45,45]):
         # cutPasteScar是必须的，但也会有一定概率同时出现cutPasteNormal
         if random.random() < 0.75:
-            augmented = self.__CutPasteNormal(img)
+            augmented = self.__CutPasteNormal(img, img_fg)
             flag = False
         else:
             flag = True
@@ -267,19 +279,16 @@ class OnlineSupervisor(ImgGTTargetTransform):
             augmented = img.copy()
         # augmented = img.copy()
 
-
-        count = random.randint(2, 6)
-
-        for i in range(0, count):
+        for i in range(random.randint(2, 4)):
             # cut region
             cut_w = random.uniform(width[0], width[1])
             cut_h = random.uniform(height[0], height[1])
 
-            from_location_h = int(random.uniform(0, h - cut_h))
-            from_location_w = int(random.uniform(0, w - cut_w))
-            #
-            # from_location_h = int(random.uniform(h / 5, 4 * h / 5 - cut_h))
-            # from_location_w = int(random.uniform(w / 5, 4 * w / 5 - cut_w))
+            # 只剪切到前景区域
+            probs = img_fg.flatten() / np.sum(img_fg)
+            index = np.random.choice(len(probs), p=probs)
+            from_location_w = index % img_fg.shape[1]
+            from_location_h = index // img_fg.shape[1]
 
 
             box = [from_location_w, from_location_h, from_location_w + cut_w, from_location_h + cut_h]
@@ -300,11 +309,10 @@ class OnlineSupervisor(ImgGTTargetTransform):
             patch = patch.convert("RGBA").rotate(rot_deg, expand=True)
 
 
-            # paste
-            to_location_h = int(random.uniform(0, h - patch.size[0]))
-            to_location_w = int(random.uniform(0, w - patch.size[1]))
-            # to_location_h = int(random.uniform(h / 5, 4 * h / 5 - patch.size[0]))
-            # to_location_w = int(random.uniform(w / 5, 4 * w / 5 - patch.size[1]))
+            # 只粘贴到前景区域
+            index = np.random.choice(len(probs), p=probs)
+            to_location_w = index % img_fg.shape[1]
+            to_location_h = index // img_fg.shape[1]
 
             mask = patch.split()[-1]
             patch = patch.convert("RGB")
@@ -313,6 +321,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
             augmented = augmented.copy()
             augmented.paste(patch, (to_location_w, to_location_h), mask=mask)
 
+        # 这里会PIL的图像转换为tensor，注意，会将原来 [0,255] 转换到 [0.0,1.0]
         transform1 = transforms.ToTensor()
         augmented = transform1(augmented)
         img = transform1(img)
@@ -323,7 +332,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
 
         gt = (img != augmented).max(0)[0].clone().float()
 
-
+        # Image.fromarray(np.array((augmented.permute(1, 2, 0) - augmented.min()) * 255 / (augmented.max() - augmented.min())).astype(np.uint8)).save(os.path.join(r'D:\Tmp\new\screw', f'{int(time.time()*1000)}.png'))
         return augmented, gt, t
 
 

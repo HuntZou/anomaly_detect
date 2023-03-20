@@ -5,6 +5,7 @@ import torch
 from kornia.filters import gaussian_blur2d
 from scipy import signal
 from skimage.transform import rotate as im_rotate
+from PIL import Image
 
 
 def ceil(x: float):
@@ -47,7 +48,7 @@ def confetti_noise(size: torch.Size, p: float = 0.01,
                    blobshaperange: Tuple[Tuple[int, int], Tuple[int, int]] = ((3, 3), (5, 5)),
                    fillval: int = 255, backval: int = 0, ensureblob: bool = True, awgn: float = 0.0,
                    clamp: bool = False, onlysquared: bool = True, rotation: int = 0,
-                   colorrange: Tuple[int, int] = None) -> torch.Tensor:
+                   colorrange: Tuple[int, int] = None, img_fg = None) -> torch.Tensor:
     """
     Generates "confetti" noise, as seen in the paper.
     The noise is based on sampling randomly many rectangles (in the following called blobs) at random positions.
@@ -94,13 +95,29 @@ def confetti_noise(size: torch.Size, p: float = 0.01,
         size = (size[0], 1, size[1], size[2])  # add channel dimension
     else:
         size = tuple(size)  # Tensor(torch.size) -> tensor of shape size, Tensor((x, y)) -> Tensor with 2 elements x & y
-    mask = (torch.rand((size[0], size[2], size[3])) < p).unsqueeze(1)  # mask[i, j, k] == 1 for center of blob
-    while ensureblob and (mask.view(mask.size(0), -1).sum(1).min() == 0):
-        idx = (mask.view(mask.size(0), -1).sum(1) == 0).nonzero().squeeze()
-        s = idx.size(0) if len(idx.shape) > 0 else 1
-        mask[idx] = (torch.rand((s, 1, size[2], size[3])) < p)
+
+    # 随机生成blob中心像素坐标
+    if img_fg is None:
+        mask = (torch.rand((size[0], size[2], size[3])) < p).unsqueeze(1)  # mask[i, j, k] == 1 for center of blob
+        # 最起码得随机生成一个blob，否则就重新生成
+        while ensureblob and (mask.view(mask.size(0), -1).sum(1).min() == 0):
+            idx = (mask.view(mask.size(0), -1).sum(1) == 0).nonzero().squeeze()
+            s = idx.size(0) if len(idx.shape) > 0 else 1
+            mask[idx] = (torch.rand((s, 1, size[2], size[3])) < p)
+        idx = mask.nonzero()  # [(idn, idz, idy, idx), ...] = indices of blob centers
+        idx_const = mask.nonzero()
+    else:
+        idx = []
+        probs = img_fg.flatten() / np.sum(img_fg)
+        for i in range(np.random.randint(1, 3)):
+            index = np.random.choice(len(probs), p=probs)
+            blob_center_h = index // img_fg.shape[1]
+            blob_center_w = index % img_fg.shape[1]
+            idx.append([0, 0, blob_center_h, blob_center_w])
+        idx = torch.tensor(idx)
+        idx_const = torch.tensor(idx)
     res = torch.empty(size).fill_(backval).int()
-    idx = mask.nonzero()  # [(idn, idz, idy, idx), ...] = indices of blob centers
+
     if idx.reshape(-1).size(0) == 0:
         return torch.zeros(out_size).int()
 
@@ -108,7 +125,8 @@ def confetti_noise(size: torch.Size, p: float = 0.01,
         (x, y) for x in range(blobshaperange[0][0], blobshaperange[1][0] + 1)
         for y in range(blobshaperange[0][1], blobshaperange[1][1] + 1) if not onlysquared or x == y
     ]
-    picks = torch.FloatTensor(idx.size(0)).uniform_(0, len(all_shps)).int()  # for each blob center pick a shape
+    # 这行代码用于控制blob的大小，它会随机从all_shps中选取一个shape
+    picks = torch.FloatTensor(idx.size(0)).uniform_(0, len(all_shps)*2*np.sum(img_fg)/np.prod(img_fg.shape)).int()  # for each blob center pick a shape
     nidx = []
     for n, blobshape in enumerate(all_shps):
         if (picks == n).sum() < 1:
@@ -146,12 +164,11 @@ def confetti_noise(size: torch.Size, p: float = 0.01,
             res = res.unsqueeze(1).repeat(1, out_size[1], 1, 1)
     if clamp:
         res = res.clamp(backval, fillval) if backval < fillval else res.clamp(fillval, backval)
-    mask = mask[:, 0, :, :]
+
     if rotation > 0:
-        idx = mask.nonzero()
         res = res.unsqueeze(1) if res.dim() != 4 else res
         res = res.transpose(1, 3).transpose(1, 2)
-        for pick, blbctr in zip(picks, mask.nonzero()):
+        for pick, blbctr in zip(picks, idx_const):
             rot = np.random.uniform(-rotation, rotation)
             p1, p2 = all_shps[pick]
             dims = (
