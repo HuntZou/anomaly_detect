@@ -61,6 +61,7 @@ def main():
 
         for epoch in itertools.count():
 
+            # Train
             net = net.train()
             loss_mean = 0
             for n_batch, data in enumerate(train_loader):
@@ -86,6 +87,7 @@ def main():
                 gt_label_list = list()
                 gt_mask_list = list()
                 score_maps = list()
+                # Test
                 with torch.no_grad():
                     for n_batch, data in enumerate(test_loader):
                         if n_batch % int(len(test_loader) / 3) == 0:
@@ -245,6 +247,9 @@ def __Gau_loss(outs, gtmaps, ref_mean, ref_var):
 
 
 def __fcdd_pixloss(anorm_heatmap, gtmaps):
+    """
+    特征约束
+    """
     anorm_heatmap = torch.norm(anorm_heatmap, p=2, dim=1).unsqueeze(1)
     anorm_heatmap = anorm_heatmap ** 2  # 张量间基本计算
     anorm_heatmap = (anorm_heatmap + 1).sqrt() - 1
@@ -342,10 +347,13 @@ def __adjacent_loss(outs, labels):
 
 
 def __f_score_sim(anorm_heatmap, score_map, labels):
+    """
+    一致性约束
+    """
     anorm_heatmap = anorm_heatmap[labels == 0]
     score_map = score_map[labels == 0]
     N, C, H, W = anorm_heatmap.size()
-    sim_dis = torch.tensor(0.).to(TrainConfigures.device)
+    sim_dis = torch.tensor(0., device=TrainConfigures.device)
     # outs = F.normalize(outs, p=2, dim=1)
     # outs1 = F.normalize(outs1, p=2, dim=1)
     for i in range(N):
@@ -409,6 +417,9 @@ def __f_score_sim1(outs, outs1, labels):
 
 
 def __score_loss(score_map, gtmaps):
+    """
+    分数约束
+    """
     score_map = torch.norm(score_map, p=2, dim=1).unsqueeze(1)
     score_map = F.interpolate(score_map, size=TrainConfigures.crop_size, mode='bilinear', align_corners=True)
     score_map = score_map.reshape([-1])

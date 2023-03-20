@@ -71,12 +71,11 @@ class LBPModule(torch.nn.Module):
         x1 = x[:, 1, ...].reshape([x.shape[0], -1]).unsqueeze(dim=1).repeat([1, self.quant_len, 1])
         x1[(x1 - measure[:, :-1, 1:] < 0) | (x1 - measure[:, 1:, 1:] > 0)] = 0
         x1 = x1.unsqueeze(1).permute(0, 3, 1, 2)
-
         x = x0.matmul(x1)
 
         x = torch.nn.functional.conv2d(x, self.masks) / torch.sum(x)
         x = x.squeeze(-1)
-        # 将量阶的阶合并到统计数量中去，这里应该想办法直接计算measure后倒数第二维的笛卡尔积，但每找到直接计算的方法，曲线救国
+        # 将量阶的阶合并到统计数量中去，这里应该想办法直接计算measure后倒数第二维的笛卡尔积，但没找到直接计算的方法，曲线救国
         levels = self.idxs.unsqueeze(0).repeat([x.shape[0], 1, 1]) + 1
         levels = (levels.permute([0, 2, 1]) * measure[:, 1:2, :].permute([0, 2, 1])).permute([0, 2, 1])
         x = torch.cat([levels, x], dim=2)

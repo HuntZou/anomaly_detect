@@ -78,19 +78,17 @@ class OnlineSupervisor(ImgGTTargetTransform):
         active = self.supervise_mode not in ['other', 'unsupervised']
         if active and (replace or replace is None and random.random() < self.p):
             supervise_mode = self.supervise_mode
-            r = random.random()
-            #修改
-            # if supervise_mode in ['cutpaste']:
-            # if random.random() < 0.35:
-            #     img, gt, target = self.__CutPasteNormal(
-            #         img, gt, target, self.ds
-            #     )
             if random.random() < 0.85:
-            # else:
+                """
+                添加cutpaste噪声
+                """
                 img, gt, target = self.CutPasteScar(
                     img, gt, target, self.ds
                 )
             else:
+                """
+                添加随机颜色块噪声，生成一张和原图大小一样的带有很多色块的噪声图，加到原图上
+                """
                 img = img.unsqueeze(0) if img is not None else img  # 在第0维度增加维度
                 # gt value 1 will be put to anom_label in mvtec_bases get_item
                 gt = gt.unsqueeze(0).unsqueeze(0).fill_(1).float() if gt is not None else gt  # 在第0维度增加两个维度 gt张量所有值填充为1.0
@@ -117,13 +115,13 @@ class OnlineSupervisor(ImgGTTargetTransform):
                     )
                 elif supervise_mode in ['malformed_normal_gt']:
                     img, gt, target = self.__malformed_normal(
-                        img, gt, target, self.ds, generated_noise, use_gt=True,
-                        invert_threshold=self.invert_threshold
+                        img, gt, target, self.ds, generated_noise, use_gt=True, invert_threshold=self.invert_threshold
                     )
                 else:
                     raise NotImplementedError('Supervise mode {} unknown.'.format(supervise_mode))
                 img = img.squeeze(0) if img is not None else img
                 gt = gt.squeeze(0).squeeze(0) if gt is not None else gt
+
         return img, gt, target
 
     def __noise(self, img: torch.Tensor, gt: torch.Tensor, target: int, ds: TorchvisionDataset,
@@ -140,21 +138,21 @@ class OnlineSupervisor(ImgGTTargetTransform):
         anom = img.clone()
 
         # invert noise if difference of malformed and original is less than threshold and inverted difference is higher
-        diff = ((anom.int() + generated_noise).clamp(0, 255) - anom.int())
-        diff = diff.reshape(anom.size(0), -1).sum(1).float().div(np.prod(anom.shape)).abs()
+        diff = ((anom.int() + generated_noise).clamp(0, 255) - anom.int())    # 对噪声的上界进行限制
+        diff = diff.reshape(anom.size(0), -1).sum(1).float().div(np.prod(anom.shape)).abs()    # 求要添加的噪声均值
         diffi = ((anom.int() - generated_noise).clamp(0, 255) - anom.int())
         diffi = diffi.reshape(anom.size(0), -1).sum(1).float().div(np.prod(anom.shape)).abs()
         inv = [i for i, (d, di) in enumerate(zip(diff, diffi)) if d < invert_threshold and di > d]
-        generated_noise[inv] = -generated_noise[inv]
+        generated_noise[inv] = -generated_noise[inv]    # 如果可添加的噪声下界绝对值大于上界，并且噪声上界绝对值大于某个阈值，则添加负的噪声（图片变暗）
 
-        anom = (anom.int() + generated_noise).clamp(0, 255).byte()  # 就是相加
+        anom = (anom.int() + generated_noise).clamp(0, 255).byte()  # 原始图片与噪声相加
 
         t = 1 if not hasattr(ds, 'anomalous_label') else ds.anomalous_label  # target transform has already been applied
 
         if use_gt:
             img = img.squeeze()
             anom = anom.squeeze()
-            gt = (img != anom).max(0)[0].clone().float()
+            gt = (img != anom).max(0)[0].clone().float()    # ???
             # gt = gt.unsqueeze(1)  # value 1 will be put to anom_label in mvtec_bases get_item
         return anom, gt, t
 
@@ -246,6 +244,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
         return augmented
 
     def CutPasteScar(self, img: torch.Tensor, gt: torch.Tensor, target: int, ds: TorchvisionDataset, width=[2,20], height=[10,50], rotation=[-45,45]):
+        # cutPasteScar是必须的，但也会有一定概率同时出现cutPasteNormal
         if random.random() < 0.75:
             augmented = self.__CutPasteNormal(img)
             flag = False
