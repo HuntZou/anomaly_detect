@@ -1,18 +1,13 @@
-import math
 import os
 import pathlib
-
-import numpy as np
 import torch
-
-from config import TrainConfigures
 from loguru import logger
 
 RESULT_DIR = './results'
 WEIGHT_DIR = './weights'
 MODEL_DIR = './models'
 
-__all__ = ('save_results', 'save_weights', 'load_weights', 'adjust_learning_rate', 'warmup_learning_rate')
+__all__ = ('save_results', 'save_weights', 'load_weights', 'warmup_learning_rate')
 
 try:
     from torch.hub import load_state_dict_from_url
@@ -49,21 +44,6 @@ def load_weights(encoder, decoders, filename):
     encoder.load_state_dict(state['encoder_state_dict'], strict=False)
     decoders = [decoder.load_state_dict(state, strict=False) for decoder, state in zip(decoders, state['decoder_state_dict'])]
     logger.info('Loading weights from {}'.format(filename))
-
-
-def adjust_learning_rate(c, optimizer, epoch):
-    lr = TrainConfigures.learn_rate
-    if c.lr_cosine:
-        eta_min = lr * (c.lr_decay_rate ** 3)
-        lr = eta_min + (lr - eta_min) * (
-                1 + math.cos(math.pi * epoch / c.meta_epochs)) / 2
-    else:
-        steps = np.sum(epoch >= np.asarray(c.lr_decay_epochs))
-        if steps > 0:
-            lr = lr * (c.lr_decay_rate ** steps)
-
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
 
 
 def warmup_learning_rate(c, epoch, batch_id, total_batches, optimizer):

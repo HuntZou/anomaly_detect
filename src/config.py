@@ -1,5 +1,7 @@
 from __future__ import print_function
 import torch
+import os
+import utils
 
 __all__ = ['TrainConfigures']
 
@@ -79,3 +81,23 @@ class TrainConfigures:
     '''
     是否在一次训练完成后计算模型的aupro
     '''
+
+    project_dir = os.path.abspath(os.path.join(os.path.abspath(__file__), "..", ".."))
+    """
+    项目的根目录路径
+    """
+
+    output_dir = os.path.join(project_dir, "output")
+    """
+    输出文件目录
+    """
+
+    model_dir = lambda class_name: os.path.join(utils.get_dir(TrainConfigures.output_dir, "modules"), f'{class_name}_{"_".join([str(i) for i in TrainConfigures.crop_size])}.pth')
+    """
+    模型输出目录
+    """
+
+    export_result_img_dir = lambda class_name: os.path.join(TrainConfigures.output_dir, "visualize", "mvtec", class_name)
+    """
+    模型处理测试图片后的导出路径
+    """
