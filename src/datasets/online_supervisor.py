@@ -82,12 +82,30 @@ class OnlineSupervisor(ImgGTTargetTransform):
         if active and (replace or replace is None and random.random() < self.p):
 
             # 生成前景区域
-            img_fg = cv2.cvtColor(np.array(img.permute([1, 2, 0])), cv2.COLOR_RGB2GRAY)
-            img_fg = abs(img_fg[:15, :15].mean() - img_fg)
-            img_fg = (img_fg - img_fg.min()) / (img_fg.max() - img_fg.min())
-            _, img_fg = cv2.threshold(img_fg, 80 / 255, 1, cv2.THRESH_BINARY)
-            img_fg = cv2.morphologyEx(img_fg, cv2.MORPH_OPEN, kernel=np.ones([5, 5]))
-            img_fg = cv2.dilate(img_fg, kernel=np.ones([20, 20]))
+            img_org = cv2.cvtColor(np.array(img.permute([1, 2, 0])), cv2.COLOR_RGB2GRAY)
+            w, h = img_org.shape
+
+            def no_shade(shade_img, mask):
+                anti_mask = abs(mask - 1)
+                shade_img = np.array(shade_img).astype(float)
+                gaussian_img = cv2.GaussianBlur(shade_img, [21, 21], 0)
+                no_shade_img = abs(cv2.log(shade_img) - cv2.log(gaussian_img))
+                no_shade_img = 255 * ((no_shade_img - no_shade_img.min()) / (no_shade_img.max() - no_shade_img.min()))
+                no_shade_img = (no_shade_img + np.sum(shade_img * anti_mask) / (np.sum(anti_mask) + 0.1)) * anti_mask + shade_img * mask
+                return no_shade_img
+
+            def corner(img_org, k, ratio):
+                #     img_fg = abs(img[:15, :15].mean() - img)/4 + abs(img[-15:, :15].mean() - img)/4 + abs(img[:15, -15:].mean() - img)/4 + abs(img[-15:, -15:].mean() - img)/4
+                img_fg = abs(img_org[-k:, -k:].mean() - img_org)
+                avg_box = cv2.boxFilter(img_fg, -1, [int(w / 10), int(h / 10)])
+                img_fg = (avg_box - avg_box.min()) / (avg_box.max() - avg_box.min())
+                _, img_fg = cv2.threshold(img_fg, img_fg.max() * ratio, 1, cv2.THRESH_BINARY)
+                img_fg = cv2.morphologyEx(img_fg, cv2.MORPH_OPEN, kernel=np.ones([5, 5]))
+                img_fg = cv2.dilate(img_fg, kernel=np.ones([20, 20]))
+                return img_fg
+
+            img_org = no_shade(img_org, corner(img_org, 15, 0.25))
+            img_fg = corner(img_org, 15, 0.4)
 
             supervise_mode = self.supervise_mode
             if random.random() < 0.85:
@@ -135,8 +153,8 @@ class OnlineSupervisor(ImgGTTargetTransform):
                 img = (img - img.min()) / (img.max() - img.min())
                 gt = gt.squeeze(0).squeeze(0) if gt is not None else gt
 
-        # Image.fromarray(np.array(255*((img.permute(1, 2, 0) - img.min()) / (img.max() - img.min()))).astype(np.uint8)).save(os.path.join(r'D:\Tmp\new\toothbrush_color_jitter', f'{int(time.time() * 1000)}.png'))
-        # Image.fromarray(np.array(gt).astype(np.uint8)*255).save(os.path.join(r'D:\Tmp\new\toothbrush_color_jitter', f'{int(time.time() * 1000)}_1.png'))
+        Image.fromarray(np.array(255*((img.permute(1, 2, 0) - img.min()) / (img.max() - img.min()))).astype(np.uint8)).save(os.path.join(r'D:\Tmp\new\tmp', f'{int(time.time() * 1000)}.png'))
+        Image.fromarray(np.array(gt).astype(np.uint8)*255).save(os.path.join(r'D:\Tmp\new\tmp', f'{int(time.time() * 1000)}_1.png'))
 
         return img, gt, target
 

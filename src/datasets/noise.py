@@ -107,15 +107,15 @@ def confetti_noise(size: torch.Size, p: float = 0.01,
         idx = mask.nonzero()  # [(idn, idz, idy, idx), ...] = indices of blob centers
         idx_const = mask.nonzero()
     else:
-        idx = []
+        idx_tmp = []
         probs = img_fg.flatten() / np.sum(img_fg)
         for i in range(np.random.randint(1, 3)):
             index = np.random.choice(len(probs), p=probs)
             blob_center_h = index // img_fg.shape[1]
             blob_center_w = index % img_fg.shape[1]
-            idx.append([0, 0, blob_center_h, blob_center_w])
-        idx = torch.tensor(idx)
-        idx_const = torch.tensor(idx)
+            idx_tmp.append([0, 0, blob_center_h, blob_center_w])
+        idx = torch.tensor(idx_tmp)
+        idx_const = torch.tensor(idx_tmp)
     res = torch.empty(size).fill_(backval).int()
 
     if idx.reshape(-1).size(0) == 0:
