@@ -92,6 +92,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
                 no_shade_img = abs(cv2.log(shade_img) - cv2.log(gaussian_img))
                 no_shade_img = 255 * ((no_shade_img - no_shade_img.min()) / (no_shade_img.max() - no_shade_img.min()))
                 no_shade_img = (no_shade_img + np.sum(shade_img * anti_mask) / (np.sum(anti_mask) + 0.1)) * anti_mask + shade_img * mask
+                no_shade_img = 255 * ((no_shade_img - no_shade_img.min()) / (no_shade_img.max() - no_shade_img.min()))
                 return no_shade_img
 
             def corner(img_org, k, ratio):
@@ -153,8 +154,8 @@ class OnlineSupervisor(ImgGTTargetTransform):
                 img = (img - img.min()) / (img.max() - img.min())
                 gt = gt.squeeze(0).squeeze(0) if gt is not None else gt
 
-        # Image.fromarray(np.array(255*((img.permute(1, 2, 0) - img.min()) / (img.max() - img.min()))).astype(np.uint8)).save(os.path.join(r'D:\Tmp\new\tmp', f'{int(time.time() * 1000)}.png'))
-        # Image.fromarray(np.array(gt).astype(np.uint8)*255).save(os.path.join(r'D:\Tmp\new\tmp', f'{int(time.time() * 1000)}_1.png'))
+        # Image.fromarray(np.array(255*((img.permute(1, 2, 0) - img.min()) / (img.max() - img.min()))).astype(np.uint8)).save(os.path.join(r'D:\Tmp\new\toothbrush_v2', f'{int(time.time() * 1000)}.png'))
+        # Image.fromarray(np.array(gt).astype(np.uint8)*255).save(os.path.join(r'D:\Tmp\new\toothbrush_v2', f'{int(time.time() * 1000)}_1.png'))
 
         return img, gt, target
 
