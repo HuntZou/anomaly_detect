@@ -1,12 +1,14 @@
-import torch
 import os
+
 import numpy as np
-from modules.ad_module import STLNet_AD
-from datasets import load_dataset
-from config import TrainConfigures
-from sklearn.metrics import roc_auc_score, precision_recall_curve
-import visualize
+import torch
 from loguru import logger
+from sklearn.metrics import roc_auc_score, precision_recall_curve
+
+import visualize
+from config import TrainConfigures
+from datasets import load_dataset
+from modules.ad_module import STLNet_AD
 
 if __name__ == "__main__":
     for class_name_idx in range(0, len(TrainConfigures.classes)):
@@ -41,7 +43,7 @@ if __name__ == "__main__":
             score_maps = list()
             for n_batch, data in enumerate(test_loader):
                 if n_batch % int(len(test_loader) / 3) == 0:
-                    logger.info(f'test {class_name} model,\tprocess: {n_batch} of {len(test_loader)},\tprogress: {int(round(n_batch + int(len(test_loader) / 3) / len(test_loader), 2) * 100)}%')
+                    logger.info(f'test {class_name} model,\tprocess: {n_batch} of {len(test_loader)},\tprogress: {int(round(n_batch / len(test_loader), 2) * 100)}%')
 
                 inputs, labels, masks = data
                 test_image_list.extend(inputs.cpu().data.numpy())
