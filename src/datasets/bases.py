@@ -66,7 +66,7 @@ class TorchvisionDataset(BaseADDataset):
     def __init__(self, root: str, logger=None):
         super().__init__(root, logger=logger)
 
-    def loaders(self, batch_size: int, shuffle_train=True, shuffle_test=False, num_workers: int = 0, train: bool = True) \
+    def loaders(self, batch_size: int = 2, shuffle_train=True, shuffle_test=False, num_workers: int = 0, train: bool = True) \
             -> Tuple[DataLoader, DataLoader]:
         assert not shuffle_test, \
             'using shuffled test raises problems with original GT maps for GT datasets, thus disabled atm!'  # 使用混合测试会导致GT数据集的原始GT地图出现问题，因此禁用了atm!

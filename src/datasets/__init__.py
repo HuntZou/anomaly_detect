@@ -11,7 +11,7 @@ CUSTOM_CLASSES = []
 
 
 def load_dataset(dataset_name: str, data_path: str, normal_class: int, preproc: str,
-                 supervise_mode: str, noise_mode: str, online_supervision: bool, nominal_label: int,
+                 supervise_mode: str, noise_mode: str, online_supervision: bool, nominal_label: int, only_test=False
                  ) -> TorchvisionDataset:
     """ Loads the dataset with given preprocessing pipeline and supervise parameters """
 
@@ -23,7 +23,7 @@ def load_dataset(dataset_name: str, data_path: str, normal_class: int, preproc: 
         dataset = ADMvTec(
             root=data_path, normal_class=normal_class, preproc=preproc,
             supervise_mode=supervise_mode, noise_mode=noise_mode, online_supervision=online_supervision,
-            nominal_label=nominal_label
+            nominal_label=nominal_label, only_test=only_test
         )
     else:
         raise NotImplementedError(f'Dataset {dataset_name} is unknown.')

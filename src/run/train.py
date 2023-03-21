@@ -19,15 +19,13 @@ import numpy as np
 import visualize
 import utils
 
-project_dir = os.path.abspath("../")
-
 
 def main():
     for class_name_idx in range(0, len(TrainConfigures.classes)):
         manual_random_seed()
 
         class_name = TrainConfigures.classes[class_name_idx]
-        board = SummaryWriter(path_join(project_dir, "output", "logs", class_name))
+        board = SummaryWriter(path_join(TrainConfigures.output_dir, "logs", class_name))
         logger.info(f'start training class: {class_name}')
 
         dataset = 'BTAD'
@@ -46,7 +44,7 @@ def main():
         net = STLNet_AD(in_channels=3, pretrained=True, output_stride=16)
 
         # load pre-train module if exist
-        pre_module_path = os.path.join(utils.get_dir(project_dir, "output", "modules"), f'{class_name}_{"_".join([str(i) for i in TrainConfigures.crop_size])}.pth')
+        pre_module_path = TrainConfigures.model_dir(class_name)
         if os.path.exists(pre_module_path):
             logger.info(f'load pre-train module: {class_name}')
             net.load_state_dict(torch.load(pre_module_path, map_location=TrainConfigures.device))
@@ -208,7 +206,7 @@ def main():
                         f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
                         seg_threshold = thresholds[np.argmax(f1)]
                         logger.info('Optimal {} PIXEL Threshold: {:.2f}'.format(class_name, seg_threshold))
-                        visualize.export_test_images(class_name, test_image_list, gt_mask, score_maps, seg_threshold)
+                        visualize.export_test_images(test_image_list, gt_mask, score_maps, seg_threshold, TrainConfigures.export_result_img_dir(class_name))
                     break
 
 
@@ -621,7 +619,7 @@ class ScoreObserver:
             self.max_epoch = epoch
 
             if epoch > 0:
-                torch.save(module.state_dict(), os.path.join(utils.get_dir(project_dir, 'output', 'modules'), f'{self.cls}_{"_".join([str(i) for i in TrainConfigures.crop_size])}.pth'))
+                torch.save(module.state_dict(), TrainConfigures.model_dir(self.cls))
                 logger.info(f'update best result of {self.cls}, module saved')
 
             self.update_count = self.threshold

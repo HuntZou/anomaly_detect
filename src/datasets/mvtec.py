@@ -14,7 +14,7 @@ class ADMvTec(TorchvisionDataset):
     enlarge = True  # enlarge dataset by repeating all data samples ten time, speeds up data loading
 
     def __init__(self, root: str, normal_class: int, preproc: str, nominal_label: int,
-                 supervise_mode: str, noise_mode: str, online_supervision: bool):
+                 supervise_mode: str, noise_mode: str, online_supervision: bool, only_test=False):
         """
         AD dataset for MVTec-AD. If no MVTec data is found in the root directory,
         the data is downloaded and processed to be stored in torch tensors with appropriate size (defined in raw_shape).
@@ -211,21 +211,23 @@ class ADMvTec(TorchvisionDataset):
                 *all_transform,
                 OnlineSupervisor(self, supervise_mode, noise_mode),  # self：表示ADMvTec类ds
             ])
-            train_set = MvTec(
-                root=self.root,
-                split='train',
-                target_transform=target_transform,
-                img_gt_transform=img_gt_transform,
-                transform=transform,
-                all_transform=all_transform,
-                normal_classes=self.normal_classes,
-                nominal_label=self.nominal_label,
-                anomalous_label=self.anomalous_label,
-                enlarge=ADMvTec.enlarge
-            )
-            self._train_set = GTSubset(
-                train_set, get_target_label_idx(train_set.targets.clone().data.cpu().numpy(), self.normal_classes)
-            )
+
+            if not only_test:
+                train_set = MvTec(
+                    root=self.root,
+                    split='train',
+                    target_transform=target_transform,
+                    img_gt_transform=img_gt_transform,
+                    transform=transform,
+                    all_transform=all_transform,
+                    normal_classes=self.normal_classes,
+                    nominal_label=self.nominal_label,
+                    anomalous_label=self.anomalous_label,
+                    enlarge=ADMvTec.enlarge
+                )
+                self._train_set = GTSubset(
+                    train_set, get_target_label_idx(train_set.targets.clone().data.cpu().numpy(), self.normal_classes)
+                )
             test_set = MvTec(
                 root=self.root, split='test_anomaly_label_target',
                 target_transform=transforms.Lambda(
