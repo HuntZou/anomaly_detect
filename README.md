@@ -17,9 +17,30 @@ modify config file `config.py` to fit your env first, like dataset_path is the d
 take class "bottle" for example:
 
 ```commandline
-python -u train.py --class-name bottle
+# this commaned train all 15 classes, you can change it in config.py
+python -u src/run/train.py
 ```
 
-## fine-tuning for special class
+or you can just export test dataset result or generate pseudo anom by run `src/run/[export_img.py|pseudo_anom.py]`
 
-capsule: src/datasets/online_supervisor.py:206&288 be commended
+## Pseudo anom
+
+![bottle](./images/pseudo_anom/bottle.png)
+![capsule](./images/pseudo_anom/capsule.png)
+![carpet](./images/pseudo_anom/carpet.png)
+![pill](./images/pseudo_anom/pill.png)
+
+## Result
+
+TODO
+
+## troubleshooting
+
+You can change any running configuration in config.py to satisfy your env.
+
+If error occurred when training
+
+```commandline
+AttributeError: Can't pickle local object 'ADMvTec.__init__.<locals>.<lambda>'
+```
+Maybe you are on Windows, since it doesn't support pickle lambda expression, you should change num_work to 0 in config.py
