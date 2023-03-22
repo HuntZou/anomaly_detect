@@ -1,7 +1,10 @@
 import os
+import sys
 
 import matplotlib.pyplot as plt
 from loguru import logger
+
+sys.path.append(os.path.abspath(os.path.join(os.path.abspath(__file__), '..', '..')))
 
 import utils
 from config import TrainConfigures
@@ -30,7 +33,7 @@ if __name__ == '__main__':
 
             fig_img, ax_img = plt.subplots(1, 2)
             ax_img[0].set_title('pseudo image')
-            ax_img[0].imshow(((pseudo - pseudo.min())/(pseudo.max() - pseudo.min())).cpu().detach().permute([1, 2, 0]))
+            ax_img[0].imshow(((pseudo - pseudo.min()) / (pseudo.max() - pseudo.min())).cpu().detach().permute([1, 2, 0]))
             ax_img[1].set_title('ground truth')
             ax_img[1].imshow(ground_truth.cpu().detach().squeeze(0))
             image_file = os.path.join(utils.get_dir(TrainConfigures.output_dir, "pseudo", class_name), f"{i}_{'anon' if label == 1 else 'norm'}.png")
