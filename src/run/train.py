@@ -1,23 +1,25 @@
 import itertools
 import os
 import random
+import sys
 from os.path import join as path_join
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+from loguru import logger
 from scipy.spatial.distance import mahalanobis
 from skimage.measure import label, regionprops
 from sklearn.metrics import roc_auc_score, auc, precision_recall_curve
 from torch.utils.tensorboard import SummaryWriter
 
-from loguru import logger
-from modules.ad_module import STLNet_AD
+sys.path.append(os.path.abspath(os.path.join(os.path.abspath(__file__), '..', '..')))
+
+import visualize
 from config import TrainConfigures
 from datasets import load_dataset
-import numpy as np
-import visualize
-import utils
+from modules.ad_module import STLNet_AD
 
 
 def main():

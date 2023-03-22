@@ -1,9 +1,12 @@
 import os
+import sys
 
 import numpy as np
 import torch
 from loguru import logger
 from sklearn.metrics import roc_auc_score, precision_recall_curve
+
+sys.path.append(os.path.abspath(os.path.join(os.path.abspath(__file__), '..', '..')))
 
 import visualize
 from config import TrainConfigures
