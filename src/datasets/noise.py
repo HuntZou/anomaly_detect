@@ -126,7 +126,7 @@ def confetti_noise(size: torch.Size, p: float = 0.01,
         for y in range(blobshaperange[0][1], blobshaperange[1][1] + 1) if not onlysquared or x == y
     ]
     # 这行代码用于控制blob的大小，它会随机从all_shps中选取一个shape
-    picks = torch.FloatTensor(idx.size(0)).uniform_(0, len(all_shps)*2*np.sum(img_fg)/np.prod(img_fg.shape)).int()  # for each blob center pick a shape
+    picks = torch.FloatTensor(idx.size(0)).uniform_(0, min(int(len(all_shps)*2*np.sum(img_fg)/np.prod(img_fg.shape)), len(all_shps))).int()  # for each blob center pick a shape
     nidx = []
     for n, blobshape in enumerate(all_shps):
         if (picks == n).sum() < 1:

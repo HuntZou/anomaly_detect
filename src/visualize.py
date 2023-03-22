@@ -1,12 +1,11 @@
-import datetime, time
 import os
+import time
 
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from skimage import morphology
-from skimage.segmentation import mark_boundaries
 from loguru import logger
+from skimage.segmentation import mark_boundaries
 
 norm = matplotlib.colors.Normalize(vmin=0.0, vmax=255.0)
 cm = 1 / 2.54
@@ -45,7 +44,6 @@ def export_test_images(test_img, gts, scores, threshold, export_dir):
             ax_img[1][0].imshow(score_map, cmap='jet', norm=norm)
             ax_img[1][1].set_title('prediction')
             ax_img[1][1].imshow(score_img)
-            image_file = os.path.join(export_dir, '{:08d}.jpg'.format(i))
-            fig_img.savefig(image_file, format='jpg')
+            fig_img.savefig(os.path.join(export_dir, '{:08d}.jpg'.format(i)), format='jpg')
             plt.close()
         logger.info(f'Export test image done, cost time: {time.time() - export_start_time}')

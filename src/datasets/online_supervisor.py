@@ -97,7 +97,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
 
             def corner(img_org, k, ratio):
                 #     img_fg = abs(img[:15, :15].mean() - img)/4 + abs(img[-15:, :15].mean() - img)/4 + abs(img[:15, -15:].mean() - img)/4 + abs(img[-15:, -15:].mean() - img)/4
-                img_fg = abs(img_org[-k:, -k:].mean() - img_org)
+                img_fg = abs(img_org[:k, :k].mean() - img_org)
                 avg_box = cv2.boxFilter(img_fg, -1, [int(w / 10), int(h / 10)])
                 img_fg = (avg_box - avg_box.min()) / (avg_box.max() - avg_box.min())
                 _, img_fg = cv2.threshold(img_fg, img_fg.max() * ratio, 1, cv2.THRESH_BINARY)
@@ -107,6 +107,9 @@ class OnlineSupervisor(ImgGTTargetTransform):
 
             img_org = no_shade(img_org, corner(img_org, 15, 0.25))
             img_fg = corner(img_org, 15, 0.4)
+            # 如果检测出的前景区域较小，则认为整张图片都是前景
+            if np.sum(img_fg) / np.prod(img_fg.shape) < 1/49:
+                img_fg = np.ones_like(img_fg)
 
             supervise_mode = self.supervise_mode
             if random.random() < 0.85:
