@@ -1,6 +1,5 @@
 import os.path
 import random
-import time
 import traceback
 from itertools import cycle
 from typing import List, Tuple
@@ -21,7 +20,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
     invert_threshold = 0.025
 
     def __init__(self, ds: TorchvisionDataset, supervise_mode: str, noise_mode: str, oe_limit: int = np.infty,
-                 p: float = 0.7, exclude: List[str] = ()):
+                 p: float = 0.5, exclude: List[str] = ()):
         """
         This class is used as a Transform parameter for torchvision datasets.
         这个类用作torchvision数据集的Transform参数。
@@ -157,8 +156,9 @@ class OnlineSupervisor(ImgGTTargetTransform):
                 img = (img - img.min()) / (img.max() - img.min())
                 gt = gt.squeeze(0).squeeze(0) if gt is not None else gt
 
-        # Image.fromarray(np.array(255*((img.permute(1, 2, 0) - img.min()) / (img.max() - img.min()))).astype(np.uint8)).save(os.path.join(r'D:\Tmp\new\toothbrush_v2', f'{int(time.time() * 1000)}.png'))
-        # Image.fromarray(np.array(gt).astype(np.uint8)*255).save(os.path.join(r'D:\Tmp\new\toothbrush_v2', f'{int(time.time() * 1000)}_1.png'))
+        # Image.fromarray(np.array(255*((img.permute(1, 2, 0) - img.min()) / (img.max() - img.min()))).astype(np.uint8)).save(os.path.join(utils.get_dir(TrainConfigures.output_dir, 'pseudo_mask'), f'{int(time.time() * 1000)}.png'))
+        # Image.fromarray(np.array(img_fg).astype(np.uint8)*255).save(os.path.join(utils.get_dir(TrainConfigures.output_dir, 'pseudo_mask'), f'{int(time.time() * 1000)}_1.png'))
+        # Image.fromarray(np.array(gt).astype(np.uint8)*255).save(os.path.join(utils.get_dir(TrainConfigures.output_dir, 'pseudo_mask'), f'{int(time.time() * 1000)}_2.png'))
 
         return img, gt, target
 
