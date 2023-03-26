@@ -226,8 +226,8 @@ class OnlineSupervisor(ImgGTTargetTransform):
                 torch.empty(1).uniform_(log_ratio[0], log_ratio[1])
             ).item()  # 取出单元素张量的元素值，并返回该值，数值类型(如‘整形’)不变
 
-            cut_w = int(round(math.sqrt(ratio_area * aspect))) * (np.sum(img_fg)/(img_fg.shape[0] * img_fg.shape[1]))  # 剪切的宽
-            cut_h = int(round(math.sqrt(ratio_area / aspect))) * (np.sum(img_fg)/(img_fg.shape[0] * img_fg.shape[1]))  # 剪切的高
+            cut_w = max(int(round(math.sqrt(ratio_area * aspect)) * (np.sum(img_fg)/(img_fg.shape[0] * img_fg.shape[1]))), 1)  # 剪切的宽
+            cut_h = max(int(round(math.sqrt(ratio_area / aspect)) * (np.sum(img_fg)/(img_fg.shape[0] * img_fg.shape[1]))), 1)  # 剪切的高
 
             # 只从前景部分取patch
             probs = img_fg.flatten() / np.sum(img_fg)
