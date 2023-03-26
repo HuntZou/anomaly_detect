@@ -22,7 +22,6 @@ from datasets.bases import GTMapADDataset
 class MvTec(VisionDataset, GTMapADDataset):
     """ Implemention of a torch style MVTec dataset """
     url = "ftp://guest:GU%2E205dldo@ftp.softronics.ch/mvtec_anomaly_detection/mvtec_anomaly_detection.tar.xz"
-    dataset_file_name = "mvtec_anomaly_detection.tar.xz"
     base_folder = 'mvtec'
     normal_anomaly_label = 'good'
     normal_anomaly_label_idx = 0
@@ -172,7 +171,7 @@ class MvTec(VisionDataset, GTMapADDataset):
         if not check_integrity(self.data_file if shape is not None else self.orig_data_file(cls)):
             logger.info(f'serialize dataset, shape: {shape}')
             # 解压文件
-            extract_dir = self.extract_archive(os.path.join(self.root, self.dataset_file_name))
+            extract_dir = self.extract_archive(os.path.join(self.root, TrainConfigures.dataset_file_name))
             train_data, train_labels = [], []
             test_data, test_labels, test_maps, test_anomaly_labels = [], [], [], []
             anomaly_labels, albl_idmap = [], {self.normal_anomaly_label: self.normal_anomaly_label_idx}
@@ -297,7 +296,7 @@ class MvTec(VisionDataset, GTMapADDataset):
     def extract_archive(dataset_tar_file: str) -> str:
         assert len(dataset_tar_file) > 0 and dataset_tar_file.endswith('.tar.xz'), 'invalid dataset source file'
         file_path, file_name = os.path.split(dataset_tar_file)
-        extract_dir = os.path.join(file_path, 'extracted_mvtec_dataset')
+        extract_dir = os.path.join(file_path, TrainConfigures.dataset_extract_dir_name)
 
         if not os.path.exists(extract_dir):
             with tarfile.open(dataset_tar_file, 'r:xz') as tar:
