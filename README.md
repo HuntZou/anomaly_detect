@@ -25,14 +25,15 @@ or you can just export test dataset result or generate pseudo anom by run `src/r
 
 ## Pseudo anom
 
-![bottle](./images/pseudo_anom/bottle.png)
 ![capsule](./images/pseudo_anom/capsule.png)
 ![carpet](./images/pseudo_anom/carpet.png)
 ![pill](./images/pseudo_anom/pill.png)
 
 ## Result
 
-TODO
+![toothbrush](./images/results/toothbrush.jpg)
+![pill](./images/results/pill.jpg)
+![carpet](./images/results/carpet.jpg)
 
 ## troubleshooting
 
