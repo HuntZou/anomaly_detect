@@ -12,6 +12,8 @@ class TrainConfigures:
     '''
     数据集位置（mvtec_anomaly_detection.tar.xz 存放位置）
     '''
+    dataset_file_name = "mvtec_anomaly_detection.tar.xz"
+    dataset_extract_dir_name = "extracted_mvtec_dataset"
 
     device = torch.device(f'cuda:0') if torch.cuda.is_available() else torch.device('cpu')
     '''
@@ -58,7 +60,13 @@ class TrainConfigures:
     '''
     每训练多少个epoch后使用测试数据集测试模型
     '''
-    assert epoch > test_interval, "train epoch must bigger then test interval"
+
+    span_of_best = 4
+    """
+    多少个 test_interval * epoch 没有得到新的最优值后，认为之前已经得到最优值了
+    """
+
+    assert epoch > test_interval, "train epoch must greater then test interval"
 
     nominal_label = 0
     '''

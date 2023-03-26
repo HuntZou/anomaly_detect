@@ -55,9 +55,9 @@ def main():
         optimizer = optim.SGD(net.parameters(), lr=TrainConfigures.learn_rate, weight_decay=TrainConfigures.weight_decay, momentum=0.9, nesterov=True)
         lr_optimizer = optim.lr_scheduler.LambdaLR(optimizer, lambda ep: TrainConfigures.sched_param ** ep, verbose=True)
 
-        label_roc_observer = ScoreObserver('LABEL_AUROC', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=4)
-        pixel_roc_observer = ScoreObserver('PIXEL_AUROC', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=4)
-        pixel_pro_observer = ScoreObserver('PIXEL_AUPRO', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=4)
+        label_roc_observer = ScoreObserver('LABEL_AUROC', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=TrainConfigures.span_of_best)
+        pixel_roc_observer = ScoreObserver('PIXEL_AUROC', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=TrainConfigures.span_of_best)
+        pixel_pro_observer = ScoreObserver('PIXEL_AUPRO', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=TrainConfigures.span_of_best)
 
         for epoch in itertools.count():
 
