@@ -1,44 +1,28 @@
 from __future__ import print_function
-import torch
+
 import os
+import platform
+
+import torch
+
 import utils
 
 __all__ = ['TrainConfigures']
 
 
 class TrainConfigures:
-    # dataset_path = "/mnt/home/y21301045/datasets"
-    dataset_path = r'D:\Datasets\mvtec'
-    '''
-    数据集位置（mvtec_anomaly_detection.tar.xz 存放位置）
-    '''
-    dataset_file_name = "mvtec_anomaly_detection.tar.xz"
-    dataset_extract_dir_name = "extracted_mvtec_dataset"
+    # 默认在windows下debug，linux下真正训练。
+    # dataset = utils.BTAD(debug='Windows' == platform.system())
+    dataset = utils.MVTec(debug='Windows' == platform.system())
 
     device = torch.device(f'cuda:0') if torch.cuda.is_available() else torch.device('cpu')
     '''
     模型训练设备
     '''
 
-    batch_size = 2
-    '''
-    单次训练批次数量
-    '''
-
-    worker_num = 0
-    '''
-    pytorch数据集预加载线程数
-    '''
-
     epoch = 200
     '''
     训练迭代多少次
-    '''
-
-    # classes = ['carpet', 'grid', 'leather', 'tile', 'wood', 'bottle', 'cable', 'capsule', 'hazelnut', 'metal_nut', 'pill', 'screw', 'toothbrush', 'transistor', 'zipper']
-    classes = ['toothbrush', 'capsule', 'screw', 'pill', 'carpet', 'cable', 'transistor', 'metal_nut', 'tile', 'wood', 'bottle', 'hazelnut', 'leather', 'grid', 'zipper']
-    '''
-    待训练的类别
     '''
 
     visualize = False

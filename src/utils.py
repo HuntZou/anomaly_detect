@@ -1,5 +1,7 @@
 import os
 import pathlib
+from abc import ABC, abstractmethod
+
 import torch
 from loguru import logger
 
@@ -65,3 +67,175 @@ def get_dir(*folders):
         pathlib.Path(folder).mkdir(parents=True, exist_ok=True)
         logger.info(f"create dir: {folder}")
     return folder
+
+
+class DatasetConfig(ABC):
+
+    @property
+    def dataset_path(self):
+        """
+        数据集位置（mvtec_anomaly_detection.tar.xz 存放位置）
+        """
+        return
+
+    @property
+    def dataset_file_name(self):
+        return
+
+    @property
+    def dataset_extract_dir_name(self):
+        """
+        注1：该目录在 dataset_path 目录下
+        注2：如果解压文件夹已经存在，则不会重新解压
+        """
+        return
+
+    @property
+    def dataset_dir_name(self):
+        """
+        该目录在 dataset_extract_dir_name 目录下
+        该目录下级目录需为classes对应的名称
+        """
+        return
+
+    @property
+    def normal_dir_label(self):
+        """
+        不同数据集中，存放正常样本的文件夹名称不同
+        例如在 MVTec 中使用的是 good，而在 BTAD 中使用的是 ok
+        """
+        return
+
+    @property
+    def classes(self):
+        """
+        待训练的类别
+        """
+        return
+
+    @property
+    def batch_size(self):
+        """
+        单次训练批次数量
+        """
+        return
+
+    @property
+    def worker_num(self):
+        """
+        pytorch数据集预加载线程数
+        """
+        return
+
+    @abstractmethod
+    def find_ground_truth(self, img_path):
+        return None
+
+
+class MVTec(DatasetConfig):
+    def __init__(self, debug=False):
+        self._debug = debug
+
+    @property
+    def dataset_path(self):
+        if self._debug:
+            return r'D:\Datasets\mvtec'
+        return r"/mnt/home/y21301045/datasets/mvtec"
+
+    @property
+    def dataset_file_name(self):
+        return "mvtec_anomaly_detection.tar.xz"
+
+    @property
+    def dataset_extract_dir_name(self):
+        return "extracted_mvtec_dataset"
+
+    @property
+    def dataset_dir_name(self):
+        return "./"
+
+    @property
+    def normal_dir_label(self):
+        return "good"
+
+    @property
+    def classes(self):
+        return ['carpet', 'grid', 'leather', 'tile', 'wood', 'bottle', 'cable', 'capsule', 'hazelnut', 'metal_nut', 'pill', 'screw', 'toothbrush', 'transistor', 'zipper']
+        # return ['toothbrush', 'capsule', 'screw', 'pill', 'carpet', 'cable', 'transistor', 'metal_nut', 'tile', 'wood', 'bottle', 'hazelnut', 'leather', 'grid', 'zipper']
+
+    @property
+    def batch_size(self):
+        if self._debug:
+            return 2
+        return 46
+
+    @property
+    def worker_num(self):
+        if self._debug:
+            return 0
+        return 12
+
+    def find_ground_truth(self, img_path):
+        img_path_split = os.path.split(img_path)
+        anorm_class_name = os.path.split(img_path_split[0])[1]
+        anorm_gt_dir = os.path.abspath(os.path.join(img_path, '../../../ground_truth', anorm_class_name))
+        for gt_name in os.listdir(anorm_gt_dir):
+            if str(gt_name).split('.')[0] == img_path_split[1].split('.')[0] + "_mask":
+                return os.path.join(anorm_gt_dir, gt_name)
+        else:
+            logger.error(f"No match ground-truth file found in {anorm_gt_dir} for {img_path}")
+            return None
+
+
+class BTAD(DatasetConfig):
+    def __init__(self, debug=False):
+        self._debug = debug
+
+    @property
+    def dataset_path(self):
+        if self._debug:
+            return r'D:\Datasets\btad'
+        return r"/mnt/home/y21301045/datasets/btad"
+
+    @property
+    def dataset_file_name(self):
+        return "btad.zip"
+
+    @property
+    def dataset_extract_dir_name(self):
+        return "extracted_btad_dataset"
+
+    @property
+    def dataset_dir_name(self):
+        return "BTech_Dataset_transformed"
+
+    @property
+    def normal_dir_label(self):
+        return "ok"
+
+    @property
+    def classes(self):
+        return ['01', '02', '03']
+
+    @property
+    def batch_size(self):
+        if self._debug:
+            return 2
+        return 46
+
+    @property
+    def worker_num(self):
+        if self._debug:
+            return 0
+        return 12
+
+    def find_ground_truth(self, img_path):
+        img_path_split = os.path.split(img_path)
+        anorm_class_name = os.path.split(img_path_split[0])[1]
+        anorm_gt_dir = os.path.abspath(os.path.join(img_path, '../../../ground_truth', anorm_class_name))
+        for gt_name in os.listdir(anorm_gt_dir):
+            if str(gt_name).split('.')[0] == img_path_split[1].split('.')[0]:
+                return os.path.join(anorm_gt_dir, gt_name)
+        else:
+            logger.error(f"No match ground-truth file found in {anorm_gt_dir} for {img_path}")
+            return None

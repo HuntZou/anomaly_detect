@@ -74,10 +74,10 @@ class TorchvisionDataset(BaseADDataset):
         if train:
             train_loader = DataLoader(dataset=self.train_set, batch_size=batch_size, shuffle=True,
                                       num_workers=num_workers, pin_memory=True, drop_last=False,
-                                      prefetch_factor=2, persistent_workers=TrainConfigures.worker_num > 0)
+                                      prefetch_factor=2, persistent_workers=TrainConfigures.dataset.worker_num > 0)
             test_loader = DataLoader(dataset=self.test_set, batch_size=5, shuffle=False,
                                      num_workers=num_workers, pin_memory=True, drop_last=False,
-                                     prefetch_factor=2, persistent_workers=TrainConfigures.worker_num > 0)
+                                     prefetch_factor=2, persistent_workers=TrainConfigures.dataset.worker_num > 0)
 
             return train_loader, test_loader
         else:

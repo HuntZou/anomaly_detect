@@ -1,5 +1,6 @@
 import os
 import tarfile
+import zipfile
 from typing import Callable
 from typing import Tuple
 
@@ -23,7 +24,6 @@ class MvTec(VisionDataset, GTMapADDataset):
     """ Implemention of a torch style MVTec dataset """
     url = "ftp://guest:GU%2E205dldo@ftp.softronics.ch/mvtec_anomaly_detection/mvtec_anomaly_detection.tar.xz"
     base_folder = 'mvtec'
-    normal_anomaly_label = 'good'
     normal_anomaly_label_idx = 0
 
     def __init__(
@@ -171,12 +171,12 @@ class MvTec(VisionDataset, GTMapADDataset):
         if not check_integrity(self.data_file if shape is not None else self.orig_data_file(cls)):
             logger.info(f'serialize dataset, shape: {shape}')
             # 解压文件
-            extract_dir = self.extract_archive(os.path.join(self.root, TrainConfigures.dataset_file_name))
+            extract_dir = self.extract_archive(os.path.join(self.root, TrainConfigures.dataset.dataset_file_name))
             train_data, train_labels = [], []
             test_data, test_labels, test_maps, test_anomaly_labels = [], [], [], []
-            anomaly_labels, albl_idmap = [], {self.normal_anomaly_label: self.normal_anomaly_label_idx}
+            anomaly_labels, albl_idmap = [], {TrainConfigures.dataset.normal_dir_label: self.normal_anomaly_label_idx}
 
-            for lbl_idx, lbl in enumerate(TrainConfigures.classes if cls is None else [TrainConfigures.classes[cls]]):
+            for lbl_idx, lbl in enumerate(TrainConfigures.dataset.classes if cls is None else [TrainConfigures.classes[cls]]):
                 if verbose:
                     logger.info('Processing data for label {}'.format(lbl))
                 for anomaly_label in sorted(os.listdir(os.path.join(extract_dir, lbl, 'test'))):  # os.listdir 返回路径下文件名组成的列表
@@ -184,9 +184,11 @@ class MvTec(VisionDataset, GTMapADDataset):
                         with open(os.path.join(extract_dir, lbl, 'test', anomaly_label, img_name), 'rb') as f:
                             sample = Image.open(f)
                             sample = self.img_to_torch(sample, shape)
-                        if anomaly_label != self.normal_anomaly_label:  # 图像为异常类型
-                            mask_name = self.convert_img_name_to_mask_name(img_name)
-                            with open(os.path.join(extract_dir, lbl, 'ground_truth', anomaly_label, mask_name), 'rb') as f:
+                        if anomaly_label != TrainConfigures.dataset.normal_dir_label:  # 图像为异常类型
+                            mask_file = TrainConfigures.dataset.find_ground_truth(os.path.abspath(os.path.join(extract_dir, lbl, 'test', anomaly_label, img_name)))
+                            if not mask_file:
+                                continue
+                            with open(mask_file, 'rb') as f:
                                 mask = Image.open(f)
                                 mask = self.img_to_torch(mask, shape)
                         else:
@@ -267,7 +269,7 @@ class MvTec(VisionDataset, GTMapADDataset):
     def filename(self):
         # The order of the training classes is relevant to the dataset used for model training,
         # therefore it is necessary to include category order-related information in the serialized dataset.
-        classes_hash = hashlib.md5("_".join(TrainConfigures.classes).encode()).hexdigest() if TrainConfigures.classes else "no_special_class"
+        classes_hash = hashlib.md5("_".join(TrainConfigures.dataset.classes).encode()).hexdigest() if TrainConfigures.dataset.classes else "no_special_class"
         return "admvtec_{}x{}_{}.pt".format(TrainConfigures.crop_size[0], TrainConfigures.crop_size[1], classes_hash)
         # return "BTAD_{}x{}.pt".format(self.shape[1], self.shape[2])
 
@@ -289,18 +291,22 @@ class MvTec(VisionDataset, GTMapADDataset):
             return torch.from_numpy(np.array(img.convert('RGB'))).float().transpose(0, 2).transpose(1, 2)[None, :][0].byte()
 
     @staticmethod
-    def convert_img_name_to_mask_name(img_name):
-        return img_name.replace('.png', '_mask.png')
-
-    @staticmethod
     def extract_archive(dataset_tar_file: str) -> str:
-        assert len(dataset_tar_file) > 0 and dataset_tar_file.endswith('.tar.xz'), 'invalid dataset source file'
+        assert len(dataset_tar_file) > 0 and dataset_tar_file.endswith('.tar.xz') or zipfile.is_zipfile(dataset_tar_file), 'invalid dataset source file'
         file_path, file_name = os.path.split(dataset_tar_file)
-        extract_dir = os.path.join(file_path, TrainConfigures.dataset_extract_dir_name)
+        extract_dir = os.path.join(file_path, TrainConfigures.dataset.dataset_extract_dir_name)
 
         if not os.path.exists(extract_dir):
-            with tarfile.open(dataset_tar_file, 'r:xz') as tar:
-                logger.info(f"extracting dataset tar file: {dataset_tar_file} to {extract_dir}")
-                tar.extractall(path=extract_dir)
+            if dataset_tar_file.endswith('.tar.xz'):
+                with tarfile.open(dataset_tar_file, 'r:xz') as f:
+                    logger.info(f"extracting dataset tar file: {dataset_tar_file} to {extract_dir}")
+                    f.extractall(path=extract_dir)
+                    f.close()
+            if zipfile.is_zipfile(dataset_tar_file):
+                with zipfile.ZipFile(dataset_tar_file) as f:
+                    logger.info(f"extracting dataset zip file: {dataset_tar_file} to {extract_dir}")
+                    f.extractall(path=extract_dir)
+                    f.close()
+            logger.info(f"extract dataset done")
 
-        return extract_dir
+        return os.path.abspath(os.path.join(extract_dir, TrainConfigures.dataset.dataset_dir_name))

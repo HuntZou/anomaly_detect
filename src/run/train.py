@@ -23,10 +23,10 @@ from modules.ad_module import STLNet_AD
 
 
 def main():
-    for class_name_idx in range(0, len(TrainConfigures.classes)):
+    for class_name_idx in range(0, len(TrainConfigures.dataset.classes)):
         manual_random_seed()
 
-        class_name = TrainConfigures.classes[class_name_idx]
+        class_name = TrainConfigures.dataset.classes[class_name_idx]
         board = SummaryWriter(path_join(TrainConfigures.output_dir, "logs", class_name))
         logger.info(f'start training class: {class_name}')
 
@@ -37,11 +37,11 @@ def main():
         online_supervision = True
 
         ds = load_dataset(
-            dataset, os.path.abspath(TrainConfigures.dataset_path), class_name_idx, preproc, supervise_mode,
+            dataset, os.path.abspath(TrainConfigures.dataset.dataset_path), class_name_idx, preproc, supervise_mode,
             noise_mode, online_supervision, TrainConfigures.nominal_label,
         )
 
-        train_loader, test_loader = ds.loaders(batch_size=TrainConfigures.batch_size, num_workers=TrainConfigures.worker_num)
+        train_loader, test_loader = ds.loaders(batch_size=TrainConfigures.dataset.batch_size, num_workers=TrainConfigures.dataset.worker_num)
 
         net = STLNet_AD(in_channels=3, pretrained=True, output_stride=16)
 

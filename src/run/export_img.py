@@ -14,8 +14,8 @@ from datasets import load_dataset
 from modules.ad_module import STLNet_AD
 
 if __name__ == "__main__":
-    for class_name_idx in range(0, len(TrainConfigures.classes)):
-        class_name = TrainConfigures.classes[class_name_idx]
+    for class_name_idx in range(0, len(TrainConfigures.dataset.classes)):
+        class_name = TrainConfigures.dataset.classes[class_name_idx]
         logger.info(f"Start export {class_name} test images")
 
         net = STLNet_AD(in_channels=3, pretrained=True, output_stride=16)
@@ -33,7 +33,7 @@ if __name__ == "__main__":
         noise_mode = 'confetti'
         online_supervision = True
         ds = load_dataset(
-            dataset, os.path.abspath(TrainConfigures.dataset_path), class_name_idx, preproc, supervise_mode,
+            dataset, os.path.abspath(TrainConfigures.dataset.dataset_path), class_name_idx, preproc, supervise_mode,
             noise_mode, online_supervision, TrainConfigures.nominal_label, only_test=True
         )
         test_loader = ds.loaders(train=False)
