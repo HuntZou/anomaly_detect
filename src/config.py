@@ -12,8 +12,8 @@ __all__ = ['TrainConfigures']
 
 class TrainConfigures:
     # 默认在windows下debug，linux下真正训练。
-    # dataset = utils.BTAD(debug='Windows' == platform.system())
     # dataset = utils.MVTec(debug='Windows' == platform.system())
+    # dataset = utils.BTAD(debug='Windows' == platform.system())
     dataset = utils.MPDD(debug='Windows' == platform.system())
 
     device = torch.device(f'cuda:0') if torch.cuda.is_available() else torch.device('cpu')
@@ -80,7 +80,7 @@ class TrainConfigures:
     项目的根目录路径
     """
 
-    output_dir = os.path.join(project_dir, "output")
+    output_dir = os.path.join(project_dir, "output", type(dataset).__name__)
     """
     输出文件目录
     """
