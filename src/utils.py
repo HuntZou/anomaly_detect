@@ -167,7 +167,7 @@ class MVTec(DatasetConfig):
     def batch_size(self):
         if self._debug:
             return 2
-        return 46
+        return 42
 
     @property
     def worker_num(self):
@@ -207,7 +207,9 @@ class BTAD(DatasetConfig):
 
     @property
     def dataset_dir_name(self):
-        return "BTech_Dataset_transformed"
+        if self._debug:
+            return "BTech_Dataset_transformed"
+        return './'
 
     @property
     def normal_dir_label(self):
@@ -221,7 +223,7 @@ class BTAD(DatasetConfig):
     def batch_size(self):
         if self._debug:
             return 2
-        return 46
+        return 42
 
     @property
     def worker_num(self):
@@ -235,6 +237,60 @@ class BTAD(DatasetConfig):
         anorm_gt_dir = os.path.abspath(os.path.join(img_path, '../../../ground_truth', anorm_class_name))
         for gt_name in os.listdir(anorm_gt_dir):
             if str(gt_name).split('.')[0] == img_path_split[1].split('.')[0]:
+                return os.path.join(anorm_gt_dir, gt_name)
+        else:
+            logger.error(f"No match ground-truth file found in {anorm_gt_dir} for {img_path}")
+            return None
+
+
+class MPDD(DatasetConfig):
+    def __init__(self, debug=False):
+        self._debug = debug
+
+    @property
+    def dataset_path(self):
+        if self._debug:
+            return r'D:\Datasets\mpdd'
+        return r"/mnt/home/y21301045/datasets/mpdd"
+
+    @property
+    def dataset_file_name(self):
+        return "mpdd.zip"
+
+    @property
+    def dataset_extract_dir_name(self):
+        return "extracted_mpdd_dataset"
+
+    @property
+    def dataset_dir_name(self):
+        return './'
+
+    @property
+    def normal_dir_label(self):
+        return "good"
+
+    @property
+    def classes(self):
+        return ['bracket_black', 'bracket_brown', 'bracket_white', 'connector', 'metal_plate', 'tubes']
+
+    @property
+    def batch_size(self):
+        if self._debug:
+            return 2
+        return 42
+
+    @property
+    def worker_num(self):
+        if self._debug:
+            return 0
+        return 12
+
+    def find_ground_truth(self, img_path):
+        img_path_split = os.path.split(img_path)
+        anorm_class_name = os.path.split(img_path_split[0])[1]
+        anorm_gt_dir = os.path.abspath(os.path.join(img_path, '../../../ground_truth', anorm_class_name))
+        for gt_name in os.listdir(anorm_gt_dir):
+            if str(gt_name).split('.')[0] == img_path_split[1].split('.')[0] + "_mask":
                 return os.path.join(anorm_gt_dir, gt_name)
         else:
             logger.error(f"No match ground-truth file found in {anorm_gt_dir} for {img_path}")

@@ -291,20 +291,20 @@ class MvTec(VisionDataset, GTMapADDataset):
             return torch.from_numpy(np.array(img.convert('RGB'))).float().transpose(0, 2).transpose(1, 2)[None, :][0].byte()
 
     @staticmethod
-    def extract_archive(dataset_tar_file: str) -> str:
-        assert len(dataset_tar_file) > 0 and dataset_tar_file.endswith('.tar.xz') or zipfile.is_zipfile(dataset_tar_file), 'invalid dataset source file'
-        file_path, file_name = os.path.split(dataset_tar_file)
+    def extract_archive(dataset_compress_file: str) -> str:
+        assert len(dataset_compress_file) > 0 and (dataset_compress_file.endswith('.tar.xz') or zipfile.is_zipfile(dataset_compress_file)), f'invalid dataset source file: {dataset_compress_file}'
+        file_path, file_name = os.path.split(dataset_compress_file)
         extract_dir = os.path.join(file_path, TrainConfigures.dataset.dataset_extract_dir_name)
 
         if not os.path.exists(extract_dir):
-            if dataset_tar_file.endswith('.tar.xz'):
-                with tarfile.open(dataset_tar_file, 'r:xz') as f:
-                    logger.info(f"extracting dataset tar file: {dataset_tar_file} to {extract_dir}")
+            if dataset_compress_file.endswith('.tar.xz'):
+                with tarfile.open(dataset_compress_file, 'r:xz') as f:
+                    logger.info(f"extracting dataset tar file: {dataset_compress_file} to {extract_dir}")
                     f.extractall(path=extract_dir)
                     f.close()
-            if zipfile.is_zipfile(dataset_tar_file):
-                with zipfile.ZipFile(dataset_tar_file) as f:
-                    logger.info(f"extracting dataset zip file: {dataset_tar_file} to {extract_dir}")
+            if zipfile.is_zipfile(dataset_compress_file):
+                with zipfile.ZipFile(dataset_compress_file) as f:
+                    logger.info(f"extracting dataset zip file: {dataset_compress_file} to {extract_dir}")
                     f.extractall(path=extract_dir)
                     f.close()
             logger.info(f"extract dataset done")
