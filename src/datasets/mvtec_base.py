@@ -176,7 +176,7 @@ class MvTec(VisionDataset, GTMapADDataset):
             test_data, test_labels, test_maps, test_anomaly_labels = [], [], [], []
             anomaly_labels, albl_idmap = [], {TrainConfigures.dataset.normal_dir_label: self.normal_anomaly_label_idx}
 
-            for lbl_idx, lbl in enumerate(TrainConfigures.dataset.classes if cls is None else [TrainConfigures.classes[cls]]):
+            for lbl_idx, lbl in enumerate(TrainConfigures.dataset.classes if cls is None else [TrainConfigures.dataset.classes[cls]]):
                 if verbose:
                     logger.info('Processing data for label {}'.format(lbl))
                 for anomaly_label in sorted(os.listdir(os.path.join(extract_dir, lbl, 'test'))):  # os.listdir 返回路径下文件名组成的列表

@@ -70,6 +70,7 @@ def get_dir(*folders):
 
 
 class DatasetConfig(ABC):
+    home_dir_linux = r'/mnt/home/y21301045/datasets'
 
     @property
     def dataset_path(self):
@@ -140,7 +141,7 @@ class MVTec(DatasetConfig):
     def dataset_path(self):
         if self._debug:
             return r'D:\Datasets\mvtec'
-        return r"/mnt/home/y21301045/datasets/mvtec"
+        return self.home_dir_linux + r"/mvtec"
 
     @property
     def dataset_file_name(self):
@@ -195,7 +196,7 @@ class BTAD(DatasetConfig):
     def dataset_path(self):
         if self._debug:
             return r'D:\Datasets\btad'
-        return r"/mnt/home/y21301045/datasets/btad"
+        return self.home_dir_linux + r"/btad"
 
     @property
     def dataset_file_name(self):
@@ -251,7 +252,7 @@ class MPDD(DatasetConfig):
     def dataset_path(self):
         if self._debug:
             return r'D:\Datasets\mpdd'
-        return r"/mnt/home/y21301045/datasets/mpdd"
+        return self.home_dir_linux + r"/mpdd"
 
     @property
     def dataset_file_name(self):
