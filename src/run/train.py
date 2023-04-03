@@ -46,9 +46,10 @@ def main():
         net = STLNet_AD(in_channels=3, pretrained=True, output_stride=16)
 
         # load pre-train module if exist
-        pre_module_path = TrainConfigures.model_dir(class_name)
+        # pre_module_path = TrainConfigures.model_dir(f'{class_name}_LABEL_AUROC')
+        pre_module_path = TrainConfigures.model_dir(f'{class_name}_PIXEL_AUROC')
         if os.path.exists(pre_module_path):
-            logger.info(f'load pre-train module: {class_name}')
+            logger.info(f'load pre-train module: {class_name} from path: {pre_module_path}')
             net.load_state_dict(torch.load(pre_module_path, map_location=TrainConfigures.device))
 
         net = net.to(TrainConfigures.device)
@@ -621,7 +622,7 @@ class ScoreObserver:
             self.max_epoch = epoch
 
             if epoch > 0:
-                torch.save(module.state_dict(), TrainConfigures.model_dir(self.cls))
+                torch.save(module.state_dict(), TrainConfigures.model_dir(f'{self.cls}_{self.name}'))
                 logger.info(f'update best result of {self.cls}, module saved')
 
             self.update_count = self.threshold
