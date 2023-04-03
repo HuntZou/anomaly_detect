@@ -12,9 +12,9 @@ __all__ = ['TrainConfigures']
 
 class TrainConfigures:
     # 默认在windows下debug，linux下真正训练。
-    # dataset = utils.MVTec(debug='Windows' == platform.system())
+    dataset = utils.MVTec(debug='Windows' == platform.system())
     # dataset = utils.BTAD(debug='Windows' == platform.system())
-    dataset = utils.MPDD(debug='Windows' == platform.system())
+    # dataset = utils.MPDD(debug='Windows' == platform.system())
 
     device = torch.device(f'cuda:0') if torch.cuda.is_available() else torch.device('cpu')
     '''

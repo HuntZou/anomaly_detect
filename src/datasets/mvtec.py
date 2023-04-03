@@ -76,6 +76,7 @@ class ADMvTec(TorchvisionDataset):
             [(-1.2906527519226074, -1.2906527519226074, -1.2906527519226074),
              (2.515115737915039, 2.515115737915039, 2.515115737915039)]
         ]
+
         # mean and std of original images per class
         mean = [
             (0.53453129529953, 0.5307118892669678, 0.5491130352020264),
@@ -111,6 +112,10 @@ class ADMvTec(TorchvisionDataset):
             (0.08259467780590057, 0.06751163303852081, 0.04756828024983406),
             (0.32304847240448, 0.32304847240448, 0.32304847240448)
         ]
+
+        # 我也不知道 min_max_l1、mean、std 这些数组是怎么来的，但是貌似它和MVTec各个类别是一一对应的，所以如果在训练时修改了原来的类别顺序，就需要将这个数组也修改一下顺序
+        origin_class_order = ['bottle', 'cable', 'capsule', 'carpet', 'grid', 'hazelnut', 'leather', 'metal_nut', 'pill', 'screw', 'tile', 'toothbrush', 'transistor', 'wood', 'zipper']
+        min_max_l1, mean, std = [[param[origin_class_order.index(c)] for c in TrainConfigures.dataset.classes] for param in [min_max_l1, mean, std]]
 
         # different types of preprocessing pipelines, 'lcn' is for using LCN, 'aug{X}' for augmentations
         img_gt_transform, img_gt_test_transform = None, None
