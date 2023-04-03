@@ -19,6 +19,7 @@ if __name__ == "__main__":
         logger.info(f"Start export {class_name} test images")
 
         net = STLNet_AD(in_channels=3, pretrained=True, output_stride=16)
+        # pre_module_path = TrainConfigures.model_dir(f'{class_name}_PIXEL_AUROC')
         pre_module_path = TrainConfigures.model_dir(class_name)
         logger.info(f"load trained {class_name} model from: {pre_module_path}")
         if not os.path.exists(pre_module_path):
