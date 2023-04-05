@@ -1,10 +1,13 @@
+import math
+
 import torch
 import torch.nn.functional as torch_func
+
 from config import TrainConfigures
 
 
 class LBPModule(torch.nn.Module):
-    def __init__(self, input_shape: list[int], kernel_size: int, output_channel=128, pool_size=3, quant_level=8, reduce_input_channel=32):
+    def __init__(self, input_shape: list[int], kernel_size: int, output_channel=128, pool_size=3, quant_level=8, reduce_input_channel=4):
         assert kernel_size % 2 == 1, "size must be an odd number"
 
         super().__init__()
@@ -35,7 +38,6 @@ class LBPModule(torch.nn.Module):
         self.lbp_kernel = torch.cat([torch.cat(get_k(idx)) for idx in idx_pairs])
 
         self.reduce_channel = torch.nn.Conv2d(in_channels=self.input_shape[-3], out_channels=self.reduce_input_channel, kernel_size=3, padding=1)
-        self.conv_expand_idx = torch.nn.Conv2d(in_channels=3, out_channels=self.input_shape[-1], kernel_size=1)
         self.conv = torch.nn.Conv2d(in_channels=self.reduce_input_channel, out_channels=256, kernel_size=3, padding=1)
         self.conv_bn = torch.nn.BatchNorm2d(256)
         self.conv_final = torch.nn.Conv2d(in_channels=256, out_channels=output_channel, kernel_size=3, padding=1)
@@ -52,19 +54,24 @@ class LBPModule(torch.nn.Module):
 
         self.unfold = torch.nn.Unfold(kernel_size=(3, 3), padding=1)
 
-        self.fc_reduce_statistics = torch.nn.Sequential(
-            # 4表示绕中心点的4个轴，3表示统计量中的3列（轴两端的量阶数和它们的数量），self.self.quant_len ** 2则表示一共有多少中可能的量阶情况
-            torch.nn.Linear(in_features=4 * quant_level ** 2 * 3, out_features=256),
+        self.gen_q = torch.nn.Sequential(
+            torch.nn.Linear(in_features=3 * 3, out_features=256),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(in_features=256, out_features=64),
+            torch.nn.Linear(in_features=256, out_features=10),
             torch.nn.LeakyReLU()
         )
 
-        self.fc_reduce_pixel = torch.nn.Sequential(
-            # 64是fc_reduce_statistics的输出，9是每个像素周围的3*3邻域的范围
-            torch.nn.Linear(in_features=64 + 9, out_features=256),
+        self.gen_k = torch.nn.Sequential(
+            torch.nn.Linear(in_features=3 * 3, out_features=256),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(in_features=256, out_features=1),
+            torch.nn.Linear(in_features=256, out_features=10),
+            torch.nn.LeakyReLU()
+        )
+
+        self.gen_v = torch.nn.Sequential(
+            torch.nn.Linear(in_features=4 * quant_level ** 2 * 3, out_features=1024),
+            torch.nn.LeakyReLU(),
+            torch.nn.Linear(in_features=1024, out_features=math.prod(self.input_shape[-2:])),
             torch.nn.LeakyReLU()
         )
 
@@ -115,21 +122,19 @@ class LBPModule(torch.nn.Module):
         x = x.reshape([batch_size * self.reduce_input_channel, 4, self.quant_len ** 2, 3])
         # 量阶--------------end
 
-        # 特征图有多少个像素点，就将统计量重复多少次，因为每个像素点都要和统计量做全连接计算
-        x = x.reshape([x.shape[0], 1, 1, 1, -1]).expand([-1, -1, *self.input_shape[-2:], -1])
-
-        # 使用两层全连接将统计量降维
-        x = self.fc_reduce_statistics(x)
+        # 将二阶统计量展平，然后使用MLP将其转换为长度等于特征图像素数量的一个context
+        x = x.reshape([x.shape[0], -1])
+        v = self.gen_v(x).unsqueeze(-1)
 
         # 将原本图像中的每个点都使用其周围的3*3的卷积核代替
         x_after_pool = self.unfold(x_after_pool).reshape([*x_after_pool.shape, -1])
-        # 将统计量和原始输入在每个像素维度上拼接
-        x = torch.cat([x, x_after_pool], dim=4)
 
-        # 每个像素由一个数组表示，将其降维成单个标量表示灰度值
-        x = self.fc_reduce_pixel(x)
+        q = self.gen_q(x_after_pool).reshape([batch_size * self.reduce_input_channel, math.prod(self.input_shape[-2:]), -1])
+        k = self.gen_k(x_after_pool).reshape([batch_size * self.reduce_input_channel, math.prod(self.input_shape[-2:]), -1])
 
-        # 还原特征图维度
+        w = torch.nn.functional.softmax(torch.bmm(q, k.permute([0, 2, 1])), dim=-1)
+        x = torch.bmm(w, v)
+
         x = x.reshape([batch_size, self.reduce_input_channel, *self.input_shape[-2:]])
 
         # 最后接两层卷积
