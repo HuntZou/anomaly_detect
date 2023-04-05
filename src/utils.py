@@ -1,9 +1,15 @@
+import math
 import os
 import pathlib
+import random
 from abc import ABC, abstractmethod
 
+import cv2
+import numpy as np
 import torch
+from PIL import Image
 from loguru import logger
+from torchvision import transforms
 
 RESULT_DIR = './results'
 WEIGHT_DIR = './weights'
@@ -67,6 +73,155 @@ def get_dir(*folders):
         pathlib.Path(folder).mkdir(parents=True, exist_ok=True)
         logger.info(f"create dir: {folder}")
     return folder
+
+
+def gen_img_fg(img):
+    """
+    生成图像前景蒙版
+    """
+    img_org = cv2.cvtColor(np.array(img.permute([1, 2, 0])), cv2.COLOR_RGB2GRAY)
+    w, h = img_org.shape
+
+    def no_shade(shade_img, mask):
+        anti_mask = abs(mask - 1)
+        shade_img = np.array(shade_img).astype(float)
+        gaussian_img = cv2.GaussianBlur(shade_img, [21, 21], 0)
+        no_shade_img = abs(cv2.log(shade_img) - cv2.log(gaussian_img))
+        no_shade_img = 255 * ((no_shade_img - no_shade_img.min()) / (no_shade_img.max() - no_shade_img.min()))
+        no_shade_img = (no_shade_img + np.sum(shade_img * anti_mask) / (np.sum(anti_mask) + 0.1)) * anti_mask + shade_img * mask
+        no_shade_img = 255 * ((no_shade_img - no_shade_img.min()) / (no_shade_img.max() - no_shade_img.min()))
+        return no_shade_img
+
+    def corner(img_org, k, ratio):
+        #     img_fg = abs(img[:15, :15].mean() - img)/4 + abs(img[-15:, :15].mean() - img)/4 + abs(img[:15, -15:].mean() - img)/4 + abs(img[-15:, -15:].mean() - img)/4
+        img_fg = abs(img_org[:k, :k].mean() - img_org)
+        avg_box = cv2.boxFilter(img_fg, -1, [int(w / 10), int(h / 10)])
+        img_fg = (avg_box - avg_box.min()) / (avg_box.max() - avg_box.min())
+        _, img_fg = cv2.threshold(img_fg, img_fg.max() * ratio, 1, cv2.THRESH_BINARY)
+        img_fg = cv2.morphologyEx(img_fg, cv2.MORPH_OPEN, kernel=np.ones([5, 5]))
+        img_fg = cv2.dilate(img_fg, kernel=np.ones([20, 20]))
+        return img_fg
+
+    img_org = no_shade(img_org, corner(img_org, 15, 0.25))
+    img_fg = corner(img_org, 15, 0.4)
+    # 如果检测出的前景区域较小，则认为整张图片都是前景
+    if np.sum(img_fg) / np.prod(img_fg.shape) < 1 / 49:
+        img_fg = np.ones_like(img_fg)
+
+    return img_fg
+
+
+def split_image(image, n):
+    """将一张图像分成n * n个块"""
+    width, height = image.size
+    block_size = width // n
+    block_list = []
+    for i in range(n):
+        for j in range(n):
+            box = (j * block_size, i * block_size, (j + 1) * block_size, (i + 1) * block_size)
+            block = image.crop(box)
+            block_list.append(block)
+    return block_list
+
+
+def shuffle_blocks(block_list, n):
+    """随机打乱块的位置，保证离中心越近的块随机后的位置也越靠近中心"""
+    center_x = n // 2
+    center_y = n // 2
+    distance_dict = {}
+    for i, block in enumerate(block_list):
+        x = i % n
+        y = i // n
+        distance = math.sqrt((x - center_x) ** 2 + (y - center_y) ** 2)
+        distance_dict[i] = distance
+    sorted_dict = sorted(distance_dict.items(), key=lambda x: x[1])
+    new_block_list = []
+    for item in sorted_dict:
+        new_block_list.append(block_list[item[0]])
+    return new_block_list
+
+
+def generate_new_image(block_list, n):
+    """生成新的图像"""
+    width, height = block_list[0].size
+    new_image = Image.new('RGB', (width * n, height * n))
+    for i in range(n):
+        for j in range(n):
+            new_image.paste(block_list[i * n + j], (j * width, i * height))
+    return new_image
+
+
+def gen_shuffle_img(original_image, block_num=16, texture_radio=0.3):
+    """
+    将一张图像分割成 block_num * block_num 块，将这些块按照其到图像中心的距离进行排序
+    取前 texture_radio 的块随机打乱顺序后生成一张新的图像
+    然后将其平铺为原始图像大小
+    block_num 必须能被 original_image 的宽高整除
+    texture_radio 表示前景物体在所有块中所占比例
+    """
+
+    if isinstance(original_image, torch.Tensor):
+        original_image = Image.fromarray(original_image.permute([1, 2, 0]).numpy())
+
+    block_list = split_image(original_image, block_num)
+    block_list = shuffle_blocks(block_list, block_num)
+    block_total = len(block_list)
+
+    block_list = block_list[:int(block_total * texture_radio)]
+
+    block_list = block_list * (block_total // len(block_list)) + block_list[:block_total % len(block_list)]
+
+    random.shuffle(block_list)
+
+    color_jitter = transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1)
+    block_list = list(map(lambda block: color_jitter(block), block_list))
+
+    # 生成新的图像
+    new_image = generate_new_image(block_list, block_num)
+    new_image = np.array(new_image)
+
+    return new_image
+
+
+def interpolate(t):
+    """
+    让噪声像素间过渡更自然
+    """
+    return t * t * t * (t * (t * 6 - 15) + 10)
+
+
+def generate_perlin_noise_2d(
+        shape, res, tileable=(False, False), interpolate=interpolate
+):
+    """
+    生成柏林噪声并二值化
+    """
+    delta = (res[0] / shape[0], res[1] / shape[1])
+    d = (shape[0] // res[0], shape[1] // res[1])
+    grid = np.mgrid[0:res[0]:delta[0], 0:res[1]:delta[1]] \
+               .transpose(1, 2, 0) % 1
+    # Gradients
+    angles = 2 * np.pi * np.random.rand(res[0] + 1, res[1] + 1)
+    gradients = np.dstack((np.cos(angles), np.sin(angles)))
+    if tileable[0]:
+        gradients[-1, :] = gradients[0, :]
+    if tileable[1]:
+        gradients[:, -1] = gradients[:, 0]
+    gradients = gradients.repeat(d[0], 0).repeat(d[1], 1)
+    g00 = gradients[:-d[0], :-d[1]]
+    g10 = gradients[d[0]:, :-d[1]]
+    g01 = gradients[:-d[0], d[1]:]
+    g11 = gradients[d[0]:, d[1]:]
+    # Ramps
+    n00 = np.sum(np.dstack((grid[:, :, 0], grid[:, :, 1])) * g00, 2)
+    n10 = np.sum(np.dstack((grid[:, :, 0] - 1, grid[:, :, 1])) * g10, 2)
+    n01 = np.sum(np.dstack((grid[:, :, 0], grid[:, :, 1] - 1)) * g01, 2)
+    n11 = np.sum(np.dstack((grid[:, :, 0] - 1, grid[:, :, 1] - 1)) * g11, 2)
+    # Interpolation
+    t = interpolate(grid)
+    n0 = n00 * (1 - t[:, :, 0]) + t[:, :, 0] * n10
+    n1 = n01 * (1 - t[:, :, 0]) + t[:, :, 0] * n11
+    return np.sqrt(2) * ((1 - t[:, :, 1]) * n0 + t[:, :, 1] * n1)
 
 
 class DatasetConfig(ABC):

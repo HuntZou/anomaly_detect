@@ -1,7 +1,10 @@
 import os
+import random
 import sys
 
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
 from loguru import logger
 
 sys.path.append(os.path.abspath(os.path.join(os.path.abspath(__file__), '..', '..')))
@@ -10,7 +13,7 @@ import utils
 from config import TrainConfigures
 from datasets.mvtec import ADMvTec
 
-generation_count = 300
+generation_count = 100
 
 if __name__ == '__main__':
     supervise_mode = 'malformed_normal_gt'
@@ -18,18 +21,25 @@ if __name__ == '__main__':
     noise_mode = 'confetti'
     online_supervision = True
 
-    for class_name_idx in range(0, len(TrainConfigures.classes)):
-        class_name = TrainConfigures.classes[class_name_idx]
+    for class_name_idx in range(0, len(TrainConfigures.dataset.classes)):
+
+        seed = 613
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        np.random.seed(seed)
+        random.seed(seed)
+
+        class_name = TrainConfigures.dataset.classes[class_name_idx]
         dataset = ADMvTec(
-            root=os.path.abspath(TrainConfigures.dataset_path), normal_class=class_name_idx, preproc=preproc,
+            root=os.path.abspath(TrainConfigures.dataset.dataset_path), normal_class=class_name_idx, preproc=preproc,
             supervise_mode=supervise_mode, noise_mode=noise_mode, online_supervision=online_supervision,
             nominal_label=TrainConfigures.nominal_label, only_test=False
         )
 
         for i in range(generation_count):
             pseudo, label, ground_truth = dataset.train_set[i % len(dataset.train_set)]
-            if i % int(generation_count / 10) == 0:
-                logger.info(f'test {class_name} model,\ttotal len: {len(dataset.train_set)},\tprocess: {i} of {generation_count},\tprogress: {int(round(i / generation_count, 2) * 100)}%')
+            if i % int(generation_count / 4) == 0:
+                logger.info(f'pseudo {class_name} anorm,\ttotal len: {len(dataset.train_set)},\tprocess: {i} of {generation_count},\tprogress: {int(round(i / generation_count, 2) * 100)}%')
 
             fig_img, ax_img = plt.subplots(1, 2)
             ax_img[0].set_title('pseudo image')

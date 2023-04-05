@@ -1,4 +1,3 @@
-import os.path
 import random
 import traceback
 from itertools import cycle
@@ -6,6 +5,8 @@ from typing import List, Tuple
 
 import numpy as np
 import torch
+
+import utils
 from datasets.bases import TorchvisionDataset
 from datasets.outlier_exposure.mvtec import OEMvTec
 from datasets.preprocessing import ImgGTTargetTransform
@@ -20,7 +21,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
     invert_threshold = 0.025
 
     def __init__(self, ds: TorchvisionDataset, supervise_mode: str, noise_mode: str, oe_limit: int = np.infty,
-                 p: float = 0.5, exclude: List[str] = ()):
+                 p: float = 0.6, exclude: List[str] = ()):
         """
         This class is used as a Transform parameter for torchvision datasets.
         这个类用作torchvision数据集的Transform参数。
@@ -80,44 +81,35 @@ class OnlineSupervisor(ImgGTTargetTransform):
         active = self.supervise_mode not in ['other', 'unsupervised']
         if active and (replace or replace is None and random.random() < self.p):
 
-            # 生成前景区域
-            img_org = cv2.cvtColor(np.array(img.permute([1, 2, 0])), cv2.COLOR_RGB2GRAY)
-            w, h = img_org.shape
-
-            def no_shade(shade_img, mask):
-                anti_mask = abs(mask - 1)
-                shade_img = np.array(shade_img).astype(float)
-                gaussian_img = cv2.GaussianBlur(shade_img, [21, 21], 0)
-                no_shade_img = abs(cv2.log(shade_img) - cv2.log(gaussian_img))
-                no_shade_img = 255 * ((no_shade_img - no_shade_img.min()) / (no_shade_img.max() - no_shade_img.min()))
-                no_shade_img = (no_shade_img + np.sum(shade_img * anti_mask) / (np.sum(anti_mask) + 0.1)) * anti_mask + shade_img * mask
-                no_shade_img = 255 * ((no_shade_img - no_shade_img.min()) / (no_shade_img.max() - no_shade_img.min()))
-                return no_shade_img
-
-            def corner(img_org, k, ratio):
-                #     img_fg = abs(img[:15, :15].mean() - img)/4 + abs(img[-15:, :15].mean() - img)/4 + abs(img[:15, -15:].mean() - img)/4 + abs(img[-15:, -15:].mean() - img)/4
-                img_fg = abs(img_org[:k, :k].mean() - img_org)
-                avg_box = cv2.boxFilter(img_fg, -1, [int(w / 10), int(h / 10)])
-                img_fg = (avg_box - avg_box.min()) / (avg_box.max() - avg_box.min())
-                _, img_fg = cv2.threshold(img_fg, img_fg.max() * ratio, 1, cv2.THRESH_BINARY)
-                img_fg = cv2.morphologyEx(img_fg, cv2.MORPH_OPEN, kernel=np.ones([5, 5]))
-                img_fg = cv2.dilate(img_fg, kernel=np.ones([20, 20]))
-                return img_fg
-
-            img_org = no_shade(img_org, corner(img_org, 15, 0.25))
-            img_fg = corner(img_org, 15, 0.4)
-            # 如果检测出的前景区域较小，则认为整张图片都是前景
-            if np.sum(img_fg) / np.prod(img_fg.shape) < 1/49:
-                img_fg = np.ones_like(img_fg)
+            img_fg = utils.gen_img_fg(img)
+            # img_fg = np.ones(img.shape[1:])
 
             supervise_mode = self.supervise_mode
             if random.random() < 0.85:
-                """
-                添加cutpaste噪声
-                """
-                img, gt, target = self.CutPasteScar(
-                    img, gt, target, self.ds, img_fg=img_fg
-                )
+                if random.random() < 0.5:
+                    """
+                    添加cutpaste噪声
+                    """
+                    img, gt, target = self.CutPasteScar(
+                        img, gt, target, self.ds, img_fg=img_fg
+                    )
+                else:
+                    # 生成柏林噪声图案
+                    perlin_noise = utils.generate_perlin_noise_2d(img.shape[1:], (16, 16))
+                    perlin_noise = np.array(perlin_noise)
+                    perlin_noise = (perlin_noise - perlin_noise.min()) * 255 / (perlin_noise.max() - perlin_noise.min())
+                    _, perlin_noise = cv2.threshold(np.array(perlin_noise), 200, 1, cv2.THRESH_BINARY)
+                    # 使用前景限定噪声范围
+                    perlin_noise = perlin_noise * img_fg
+                    perlin_noise = np.repeat((perlin_noise * img_fg)[np.newaxis, ...], 3, axis=0)
+                    # 生成噪声纹理图案
+                    shuffle_img = utils.gen_shuffle_img(img, block_num=16, texture_radio=0.3)
+                    # 生成伪异常图像
+                    pseudo_anorm = perlin_noise * shuffle_img.transpose([2, 0, 1])
+                    # 将伪异常添加到原图上
+                    img = img * (1 - perlin_noise) + pseudo_anorm
+                    gt = torch.tensor(perlin_noise[0])
+                    target = 1 if np.sum(perlin_noise) > 0 else 0
             else:
                 """
                 添加随机颜色块噪声，生成一张和原图大小一样的带有很多色块的噪声图，加到原图上
@@ -277,7 +269,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
 
         return augmented
 
-    def CutPasteScar(self, img: torch.Tensor, gt: torch.Tensor, target: int, ds: TorchvisionDataset, img_fg, width=[2,20], height=[10,50], rotation=[-45,45]):
+    def CutPasteScar(self, img: torch.Tensor, gt: torch.Tensor, target: int, ds: TorchvisionDataset, img_fg, width=[1,10], height=[10,40], rotation=[-45,45]):
         # cutPasteScar是必须的，但也会有一定概率同时出现cutPasteNormal
         if random.random() < 0.75:
             augmented = self.__CutPasteNormal(img, img_fg)
@@ -295,8 +287,6 @@ class OnlineSupervisor(ImgGTTargetTransform):
                                              saturation=0.1,
                                              hue=0.1)
 
-        mytransform = AddSaltPepperNoise(0.02)
-
         if flag:
             augmented = img.copy()
         # augmented = img.copy()
@@ -311,7 +301,6 @@ class OnlineSupervisor(ImgGTTargetTransform):
             index = np.random.choice(len(probs), p=probs)
             from_location_w = index % img_fg.shape[1]
             from_location_h = index // img_fg.shape[1]
-
 
             box = [from_location_w, from_location_h, from_location_w + cut_w, from_location_h + cut_h]
             patch = img.crop(box)

@@ -44,6 +44,7 @@ def export_test_images(test_img, gts, scores, threshold, export_dir):
             ax_img[1][0].imshow(score_map, cmap='jet', norm=norm)
             ax_img[1][1].set_title('prediction')
             ax_img[1][1].imshow(score_img)
+            plt.tight_layout()
             fig_img.savefig(os.path.join(export_dir, '{:08d}.jpg'.format(i)), format='jpg')
             plt.close()
         logger.info(f'Export test image done, cost time: {time.time() - export_start_time}')

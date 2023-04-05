@@ -161,7 +161,7 @@ class STLNet_AD(nn.Module):
         self.backbone = ResNet(in_channels=in_channels, output_stride=16, pretrained=pretrained)
         self.STL = STL(in_channel=768)  # 192  768 512
         self.self_calibration = SelfCalibration(1024, 256, stride=1, padding=1, dilation=1, groups=1, pooling_r=4)
-        self.conv2 = nn.Conv2d(1216, 128, 3, 1, 1)  # 1280
+        self.conv2 = nn.Conv2d(1280, 128, 3, 1, 1)  # 1280
         self.conv_final = nn.Conv2d(128, 32, 1)
         self.conv_score = nn.Conv2d(32, 1, 1)
         self.bn1 = nn.BatchNorm2d(32)

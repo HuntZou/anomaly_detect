@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 
 import numpy as np
@@ -15,12 +16,19 @@ from modules.ad_module import STLNet_AD
 
 if __name__ == "__main__":
     for class_name_idx in range(0, len(TrainConfigures.dataset.classes)):
+
+        seed = 613
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        np.random.seed(seed)
+        random.seed(seed)
+
         class_name = TrainConfigures.dataset.classes[class_name_idx]
         logger.info(f"Start export {class_name} test images")
 
         net = STLNet_AD(in_channels=3, pretrained=True, output_stride=16)
-        # pre_module_path = TrainConfigures.model_dir(f'{class_name}_PIXEL_AUROC')
-        pre_module_path = TrainConfigures.model_dir(class_name)
+        pre_module_path = TrainConfigures.model_dir(f'{class_name}_PIXEL_AUROC')
+        # pre_module_path = TrainConfigures.model_dir(class_name)
         logger.info(f"load trained {class_name} model from: {pre_module_path}")
         if not os.path.exists(pre_module_path):
             logger.error(f"{class_name} model not found from path: {pre_module_path}")
@@ -65,7 +73,6 @@ if __name__ == "__main__":
 
             score_labels = np.max(score_maps, axis=(1, 2))
             gt_labels = np.asarray(gt_label_list, dtype=bool)
-            label_roc = roc_auc_score(gt_labels, score_labels)
 
             gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
             pixel_roc = roc_auc_score(gt_mask.flatten(), score_maps.flatten())

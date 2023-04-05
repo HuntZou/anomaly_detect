@@ -28,13 +28,15 @@ if __name__ == "__main__":
 
         net = STLNet_AD(in_channels=3, pretrained=True, output_stride=16)
         # pre_module_path = TrainConfigures.model_dir(f'{class_name}_LABEL_AUROC')
-        # pre_module_path = TrainConfigures.model_dir(f'{class_name}_PIXEL_AUROC')
-        pre_module_path = TrainConfigures.model_dir(class_name)
-        logger.info(f"load pre-trained {class_name} model from: {pre_module_path}")
+        pre_module_path = TrainConfigures.model_dir(f'{class_name}_PIXEL_AUROC')
+        # pre_module_path = TrainConfigures.model_dir(class_name)
+
         if not os.path.exists(pre_module_path):
             logger.error(f"{class_name} model not found from path: {pre_module_path}")
             continue
+        logger.info(f"load pre-trained {class_name} model from: {pre_module_path}")
         net.load_state_dict(torch.load(pre_module_path, map_location=TrainConfigures.device))
+
         net = net.to(TrainConfigures.device)
 
         dataset = 'BTAD'

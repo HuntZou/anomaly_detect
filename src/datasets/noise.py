@@ -5,7 +5,6 @@ import torch
 from kornia.filters import gaussian_blur2d
 from scipy import signal
 from skimage.transform import rotate as im_rotate
-from PIL import Image
 
 
 def ceil(x: float):

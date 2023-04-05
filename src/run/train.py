@@ -54,7 +54,8 @@ def main():
 
         net = net.to(TrainConfigures.device)
         optimizer = optim.SGD(net.parameters(), lr=TrainConfigures.learn_rate, weight_decay=TrainConfigures.weight_decay, momentum=0.9, nesterov=True)
-        lr_optimizer = optim.lr_scheduler.LambdaLR(optimizer, lambda ep: TrainConfigures.sched_param ** ep, verbose=True)
+        optimizer = optim.Adam(params=net.parameters(), lr=1e-3)
+        # lr_optimizer = optim.lr_scheduler.LambdaLR(optimizer, lambda ep: TrainConfigures.sched_param ** ep, verbose=True)
 
         label_roc_observer = ScoreObserver('LABEL_AUROC', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=TrainConfigures.span_of_best)
         pixel_roc_observer = ScoreObserver('PIXEL_AUROC', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=TrainConfigures.span_of_best)
@@ -75,7 +76,7 @@ def main():
                 loss.backward()
                 optimizer.step()
                 loss_mean += loss.item() / len(train_loader)
-            lr_optimizer.step()
+            # lr_optimizer.step()
 
             board.add_scalar(f"loss/train_loss_mean", loss_mean, epoch)
             total, non_zero = count_non_zeros(net)

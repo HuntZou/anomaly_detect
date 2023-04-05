@@ -331,9 +331,12 @@ class STL(nn.Module):
         self.tem = TEM(128)
         # 除以4是因为resnet会在一开始将图片缩小到1/4
         lbp_input_shape = [768, int(TrainConfigures.crop_size[0] / 4), int(TrainConfigures.crop_size[1] / 4)]
-        self.lbp1 = LBPModule(input_shape=lbp_input_shape, kernel_size=3, output_channel=64, pool_size=1)
-        self.lbp2 = LBPModule(input_shape=lbp_input_shape, kernel_size=7, output_channel=64, pool_size=3)
-        self.lbp3 = LBPModule(input_shape=lbp_input_shape, kernel_size=11, output_channel=64, pool_size=5)
+        lbp_output_channel = 128
+        self.lbp1 = LBPModule(input_shape=lbp_input_shape, kernel_size=3, output_channel=lbp_output_channel, pool_size=1)
+        self.lbp2 = LBPModule(input_shape=lbp_input_shape, kernel_size=7, output_channel=lbp_output_channel, pool_size=3)
+        self.lbp3 = LBPModule(input_shape=lbp_input_shape, kernel_size=11, output_channel=lbp_output_channel, pool_size=5)
+
+        self.final_conv = ConvBNReLU(768 + lbp_output_channel * 3, 1024, 1, 1, 0)
 
     def forward(self, x):
         x = self.conv_start(x)
@@ -343,6 +346,7 @@ class STL(nn.Module):
         x_lbp2 = self.lbp2(x)
         x_lbp3 = self.lbp3(x)
         x = torch.cat([x, x_lbp1, x_lbp2, x_lbp3], dim=1)
+        x = self.final_conv(x)
         return x
 
 
