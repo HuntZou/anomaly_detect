@@ -86,7 +86,7 @@ def gen_img_fg(img):
         anti_mask = abs(mask - 1)
         shade_img = np.array(shade_img).astype(float)
         gaussian_img = cv2.GaussianBlur(shade_img, [21, 21], 0)
-        no_shade_img = abs(cv2.log(shade_img) - cv2.log(gaussian_img))
+        no_shade_img = abs(cv2.log(shade_img.clip(1, 255)) - cv2.log(gaussian_img.clip(1, 255)))
         no_shade_img = 255 * ((no_shade_img - no_shade_img.min()) / (no_shade_img.max() - no_shade_img.min()))
         no_shade_img = (no_shade_img + np.sum(shade_img * anti_mask) / (np.sum(anti_mask) + 0.1)) * anti_mask + shade_img * mask
         no_shade_img = 255 * ((no_shade_img - no_shade_img.min()) / (no_shade_img.max() - no_shade_img.min()))
