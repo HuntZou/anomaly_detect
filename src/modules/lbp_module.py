@@ -54,24 +54,33 @@ class LBPModule(torch.nn.Module):
 
         self.unfold = torch.nn.Unfold(kernel_size=(3, 3), padding=1)
 
+        # 注意力机制设置隐藏状态特征长度
+        self.attention_hidden_feature_len = 22 ** 2
+        self.attention_embed_len = 8 ** 2
+
+        self.reduce_attention_hidden_feature = torch.nn.Sequential(
+            torch.nn.Conv2d(in_channels=math.prod(input_shape[-2:]), out_channels=self.attention_hidden_feature_len, kernel_size=1),
+            torch.nn.LeakyReLU()
+        )
+
         self.gen_q = torch.nn.Sequential(
             torch.nn.Linear(in_features=3 * 3, out_features=256),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(in_features=256, out_features=10),
+            torch.nn.Linear(in_features=256, out_features=self.attention_embed_len),
             torch.nn.LeakyReLU()
         )
 
         self.gen_k = torch.nn.Sequential(
             torch.nn.Linear(in_features=3 * 3, out_features=256),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(in_features=256, out_features=10),
+            torch.nn.Linear(in_features=256, out_features=self.attention_embed_len),
             torch.nn.LeakyReLU()
         )
 
         self.gen_v = torch.nn.Sequential(
-            torch.nn.Linear(in_features=4 * quant_level ** 2 * 3, out_features=1024),
+            torch.nn.Linear(in_features=4 * quant_level ** 2 * 3, out_features=256),
             torch.nn.LeakyReLU(),
-            torch.nn.Linear(in_features=1024, out_features=math.prod(self.input_shape[-2:])),
+            torch.nn.Linear(in_features=256, out_features=self.attention_hidden_feature_len),
             torch.nn.LeakyReLU()
         )
 
@@ -127,10 +136,12 @@ class LBPModule(torch.nn.Module):
         v = self.gen_v(x).unsqueeze(-1)
 
         # 将原本图像中的每个点都使用其周围的3*3的卷积核代替
-        x_after_pool = self.unfold(x_after_pool).reshape([*x_after_pool.shape, -1])
+        x_after_pool = self.unfold(x_after_pool).reshape([x_after_pool.shape[0], math.prod(self.input_shape[-2:]), 3, 3])
 
-        q = self.gen_q(x_after_pool).reshape([batch_size * self.reduce_input_channel, math.prod(self.input_shape[-2:]), -1])
-        k = self.gen_k(x_after_pool).reshape([batch_size * self.reduce_input_channel, math.prod(self.input_shape[-2:]), -1])
+        q = self.gen_q(x_after_pool.reshape([*x_after_pool.shape[:-2], -1]))
+
+        x_after_pool = self.reduce_attention_hidden_feature(x_after_pool)
+        k = self.gen_k(x_after_pool.reshape([*x_after_pool.shape[:-2], -1]))
 
         w = torch.nn.functional.softmax(torch.bmm(q, k.permute([0, 2, 1])), dim=-1)
         x = torch.bmm(w, v)
