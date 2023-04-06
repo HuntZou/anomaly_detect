@@ -364,8 +364,8 @@ class BTAD(DatasetConfig):
     @property
     def dataset_dir_name(self):
         if self._debug:
-            return "BTech_Dataset_transformed"
-        return './'
+            return "./BTech_Dataset_transformed"
+        return './BTech_Dataset_transformed'
 
     @property
     def normal_dir_label(self):
