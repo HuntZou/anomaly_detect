@@ -86,7 +86,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
 
             supervise_mode = self.supervise_mode
             if random.random() < 0.85:
-                if random.random() < 0.5:
+                if random.random() < 0.75:
                     """
                     添加cutpaste噪声
                     """

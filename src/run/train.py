@@ -210,7 +210,7 @@ def main():
                         f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
                         seg_threshold = thresholds[np.argmax(f1)]
                         logger.info('Optimal {} PIXEL Threshold: {:.2f}'.format(class_name, seg_threshold))
-                        visualize.export_test_images(test_image_list, gt_mask, score_maps, seg_threshold, TrainConfigures.export_result_img_dir(class_name))
+                        visualize.export_test_images(test_image_list, gt_mask, score_maps, seg_threshold, TrainConfigures.export_result_img_dir(class_name, type(TrainConfigures.dataset).__name__))
                     break
 
 

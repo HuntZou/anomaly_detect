@@ -1,3 +1,4 @@
+import hashlib
 import os
 import tarfile
 import zipfile
@@ -7,13 +8,12 @@ from typing import Tuple
 import numpy as np
 import torch
 import torchvision.transforms as transforms
-import hashlib
 from PIL import Image
+from loguru import logger
 from torchvision.datasets import VisionDataset
 from torchvision.datasets.imagenet import check_integrity, verify_str_arg
-from config import TrainConfigures
-from loguru import logger
 
+from config import TrainConfigures
 from datasets.bases import GTMapADDataset
 
 
@@ -292,21 +292,24 @@ class MvTec(VisionDataset, GTMapADDataset):
 
     @staticmethod
     def extract_archive(dataset_compress_file: str) -> str:
-        assert (len(dataset_compress_file) > 0 and (dataset_compress_file.endswith('.tar.xz')) or zipfile.is_zipfile(dataset_compress_file)), f'invalid dataset source file, please check file path: {dataset_compress_file}'
+        assert len(dataset_compress_file) > 0 and (dataset_compress_file.endswith('.tar.xz') or zipfile.is_zipfile(dataset_compress_file) or tarfile.is_tarfile(
+            dataset_compress_file)), f'invalid dataset source file, please check file path: {dataset_compress_file}'
         file_path, file_name = os.path.split(dataset_compress_file)
         extract_dir = os.path.join(file_path, TrainConfigures.dataset.dataset_extract_dir_name)
 
         if not os.path.exists(extract_dir):
             if dataset_compress_file.endswith('.tar.xz'):
                 with tarfile.open(dataset_compress_file, 'r:xz') as f:
-                    logger.info(f"extracting dataset tar file: {dataset_compress_file} to {extract_dir}")
+                    logger.info(f"extracting dataset tar.xz file: {dataset_compress_file} to {extract_dir}")
                     f.extractall(path=extract_dir)
-                    f.close()
             if zipfile.is_zipfile(dataset_compress_file):
                 with zipfile.ZipFile(dataset_compress_file) as f:
                     logger.info(f"extracting dataset zip file: {dataset_compress_file} to {extract_dir}")
                     f.extractall(path=extract_dir)
-                    f.close()
+            if tarfile.is_tarfile(dataset_compress_file):
+                with tarfile.open(dataset_compress_file, 'r') as f:
+                    logger.info(f"extracting dataset tar file: {dataset_compress_file} to {extract_dir}")
+                    f.extractall(path=extract_dir)
             logger.info(f"extract dataset done")
 
         return os.path.abspath(os.path.join(extract_dir, TrainConfigures.dataset.dataset_dir_name))

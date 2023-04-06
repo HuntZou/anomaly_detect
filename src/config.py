@@ -15,6 +15,7 @@ class TrainConfigures:
     dataset = utils.MVTec(debug='Windows' == platform.system())
     # dataset = utils.BTAD(debug='Windows' == platform.system())
     # dataset = utils.MPDD(debug='Windows' == platform.system())
+    # dataset = utils.VISA(debug='Windows' == platform.system())
 
     device = torch.device(f'cuda:0') if torch.cuda.is_available() else torch.device('cpu')
     '''
@@ -90,7 +91,7 @@ class TrainConfigures:
     模型输出目录
     """
 
-    export_result_img_dir = lambda class_name: os.path.join(TrainConfigures.output_dir, "visualize", "mvtec", class_name)
+    export_result_img_dir = lambda class_name, dataset_name: os.path.join(TrainConfigures.output_dir, "visualize", dataset_name, class_name)
     """
     模型处理测试图片后的导出路径
     """

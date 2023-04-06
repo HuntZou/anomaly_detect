@@ -121,6 +121,8 @@ class ADMvTec(TorchvisionDataset):
             origin_class_order = ['bracket_black', 'bracket_brown', 'bracket_white', 'connector', 'metal_plate', 'tubes']
         elif isinstance(TrainConfigures.dataset, utils.MVTec):
             origin_class_order = ['bottle', 'cable', 'capsule', 'carpet', 'grid', 'hazelnut', 'leather', 'metal_nut', 'pill', 'screw', 'tile', 'toothbrush', 'transistor', 'wood', 'zipper']
+        elif isinstance(TrainConfigures.dataset, utils.VISA):
+            origin_class_order = ['candle', 'capsules', 'cashew', 'chewinggum', 'fryum', 'macaroni1', 'macaroni2', 'pcb1', 'pcb2', 'pcb3', 'pcb4', 'pipe_fryum']
         else:
             raise Exception('Invalid dataset')
         min_max_l1, mean, std = [[param[origin_class_order.index(c)] for c in TrainConfigures.dataset.classes] for param in [min_max_l1, mean, std]]

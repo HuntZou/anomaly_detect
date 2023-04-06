@@ -1,7 +1,9 @@
+import csv
 import math
 import os
 import pathlib
 import random
+import shutil
 from abc import ABC, abstractmethod
 
 import cv2
@@ -447,6 +449,82 @@ class MPDD(DatasetConfig):
         anorm_gt_dir = os.path.abspath(os.path.join(img_path, '../../../ground_truth', anorm_class_name))
         for gt_name in os.listdir(anorm_gt_dir):
             if str(gt_name).split('.')[0] == img_path_split[1].split('.')[0] + "_mask":
+                return os.path.join(anorm_gt_dir, gt_name)
+        else:
+            logger.error(f"No match ground-truth file found in {anorm_gt_dir} for {img_path}")
+            return None
+
+
+class VISA(DatasetConfig):
+    def __init__(self, debug=False):
+        self._debug = debug
+
+    @property
+    def dataset_path(self):
+        if self._debug:
+            return r'D:\Datasets\visa'
+        return self.home_dir_linux + r"/visa"
+
+    @property
+    def dataset_file_name(self):
+        return "VisA_20220922.tar"
+
+    @property
+    def dataset_extract_dir_name(self):
+        return "extracted_visa_dataset"
+
+    @property
+    def dataset_dir_name(self):
+        format_data_dir = os.path.join(self.dataset_path, self.dataset_extract_dir_name, 'VisA_formatted')
+
+        if not os.path.exists(format_data_dir):
+            logger.info(f"format VsiA dataset: {format_data_dir}")
+            extract_dir = os.path.join(self.dataset_path, self.dataset_extract_dir_name)
+            image_meta_info_file = os.path.join(extract_dir, 'split_csv', '1cls.csv')
+
+            with open(image_meta_info_file) as f:
+                for img_item in csv.DictReader(f):
+                    class_name, split, label, img_path, mask_path = img_item.values()
+                    img_path = os.path.join(extract_dir, img_path)
+                    img_name = os.path.basename(img_path)
+                    if os.path.exists(img_path):
+                        target_img_path = os.path.join(format_data_dir, class_name, split, self.normal_dir_label if label == 'normal' else 'defect')
+                        os.makedirs(target_img_path, exist_ok=True)
+                        shutil.copyfile(img_path, os.path.join(target_img_path, img_name))
+                        mask_path = os.path.join(extract_dir, mask_path)
+                        if os.path.exists(mask_path) and os.path.isfile(mask_path):
+                            target_mask_path = os.path.join(format_data_dir, class_name, 'ground_truth', 'defect')
+                            os.makedirs(target_mask_path, exist_ok=True)
+                            shutil.copyfile(os.path.join(extract_dir, mask_path), os.path.join(target_mask_path, img_name))
+
+        return os.path.basename(format_data_dir)
+
+    @property
+    def normal_dir_label(self):
+        return "good"
+
+    @property
+    def classes(self):
+        return ['candle', 'capsules', 'cashew', 'chewinggum', 'fryum', 'macaroni1', 'macaroni2', 'pcb1', 'pcb2', 'pcb3', 'pcb4', 'pipe_fryum']
+
+    @property
+    def batch_size(self):
+        if self._debug:
+            return 2
+        return 42
+
+    @property
+    def worker_num(self):
+        if self._debug:
+            return 0
+        return 12
+
+    def find_ground_truth(self, img_path):
+        img_path_split = os.path.split(img_path)
+        anorm_class_name = os.path.split(img_path_split[0])[1]
+        anorm_gt_dir = os.path.abspath(os.path.join(img_path, '../../../ground_truth', anorm_class_name))
+        for gt_name in os.listdir(anorm_gt_dir):
+            if str(gt_name).split('.')[0] == img_path_split[1].split('.')[0]:
                 return os.path.join(anorm_gt_dir, gt_name)
         else:
             logger.error(f"No match ground-truth file found in {anorm_gt_dir} for {img_path}")

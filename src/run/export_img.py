@@ -29,10 +29,11 @@ if __name__ == "__main__":
         net = STLNet_AD(in_channels=3, pretrained=True, output_stride=16)
         pre_module_path = TrainConfigures.model_dir(f'{class_name}_PIXEL_AUROC')
         # pre_module_path = TrainConfigures.model_dir(class_name)
-        logger.info(f"load trained {class_name} model from: {pre_module_path}")
+
         if not os.path.exists(pre_module_path):
             logger.error(f"{class_name} model not found from path: {pre_module_path}")
             continue
+        logger.info(f"load trained {class_name} model from: {pre_module_path}")
         net.load_state_dict(torch.load(pre_module_path, map_location=TrainConfigures.device))
         net = net.to(TrainConfigures.device)
 
@@ -86,5 +87,5 @@ if __name__ == "__main__":
             b = precision + recall
             f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
             seg_threshold = thresholds[np.argmax(f1)]
-            visualize.export_test_images(test_image_list, gt_mask, score_maps, seg_threshold, TrainConfigures.export_result_img_dir(class_name))
+            visualize.export_test_images(test_image_list, gt_mask, score_maps, seg_threshold, TrainConfigures.export_result_img_dir(class_name, type(TrainConfigures.dataset).__name__))
     logger.info("All export task done")
