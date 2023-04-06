@@ -8,30 +8,26 @@ from modules.stl_net import STL
 class ResNet(nn.Module):
     def __init__(self, in_channels=3, output_stride=8, backbone='resnet50', pretrained=True):
         super(ResNet, self).__init__()
-        model = models.resnet50(weights='ResNet50_Weights.DEFAULT')
-        # model.conv1 = torch.nn.Conv2d(12, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        model = models.densenet161(weights='DenseNet161_Weights.DEFAULT').features
 
-        # resnet 残差之前还有4个层
+        # densenet 最开始有4个层
         self.layer0 = nn.Sequential(*list(model.children())[:4])
 
-        self.layer1 = model.layer1
-        self.layer2 = model.layer2
-        self.layer3 = model.layer3
+        self.layer1 = nn.Sequential(*list(model.children())[4:5])
+        self.layer1_align = nn.Conv2d(in_channels=384, out_channels=256, kernel_size=3, padding=1)
+        self.layer2 = nn.Sequential(*list(model.children())[5:7])
+        self.layer2_align = nn.Conv2d(in_channels=768, out_channels=512, kernel_size=3, padding=1)
+        self.layer3 = nn.Sequential(*list(model.children())[7:9])
+        self.layer3_align = nn.Conv2d(in_channels=2112, out_channels=1024, kernel_size=3, padding=1)
 
     def forward(self, x):
-        # x = torch.cat([
-        #     x[:, :, 0: int(x.shape[-2] / 2), 0: int(x.shape[-1] / 2)],
-        #     x[:, :, int(x.shape[-2] / 2):, 0: int(x.shape[-1] / 2)],
-        #     x[:, :, 0: int(x.shape[-2] / 2), int(x.shape[-1] / 2):],
-        #     x[:, :, int(x.shape[-2] / 2):, int(x.shape[-1] / 2):],
-        # ], dim=1)
         x = self.layer0(x)
         x = self.layer1(x)
-        low_level_features_1 = x
+        low_level_features_1 = self.layer1_align(x)
         x = self.layer2(x)
-        low_level_features_2 = x
+        low_level_features_2 = self.layer2_align(x)
         x = self.layer3(x)
-        low_level_features_3 = x
+        low_level_features_3 = self.layer3_align(x)
 
         return x, low_level_features_1, low_level_features_2, low_level_features_3
 

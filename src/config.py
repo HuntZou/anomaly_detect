@@ -47,7 +47,7 @@ class TrainConfigures:
     每训练多少个epoch后使用测试数据集测试模型
     '''
 
-    span_of_best = 4
+    span_of_best = 3
     """
     多少个 test_interval * epoch 没有得到新的最优值后，认为之前已经得到最优值了
     """
