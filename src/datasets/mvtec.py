@@ -3,6 +3,7 @@ import torch
 import torchvision.transforms as transforms
 from PIL import Image
 
+import utils
 from datasets.bases import TorchvisionDataset, GTSubset
 from datasets.mvtec_base import MvTec
 from datasets.online_supervisor import OnlineSupervisor
@@ -114,7 +115,14 @@ class ADMvTec(TorchvisionDataset):
         ]
 
         # 我也不知道 min_max_l1、mean、std 这些数组是怎么来的，但是貌似它和MVTec各个类别是一一对应的，所以如果在训练时修改了原来的类别顺序，就需要将这个数组也修改一下顺序
-        origin_class_order = ['bottle', 'cable', 'capsule', 'carpet', 'grid', 'hazelnut', 'leather', 'metal_nut', 'pill', 'screw', 'tile', 'toothbrush', 'transistor', 'wood', 'zipper']
+        if isinstance(TrainConfigures.dataset, utils.BTAD):
+            origin_class_order = ['01', '02', '03']
+        elif isinstance(TrainConfigures.dataset, utils.MPDD):
+            origin_class_order = ['bracket_black', 'bracket_brown', 'bracket_white', 'connector', 'metal_plate', 'tubes']
+        elif isinstance(TrainConfigures.dataset, utils.MVTec):
+            origin_class_order = ['bottle', 'cable', 'capsule', 'carpet', 'grid', 'hazelnut', 'leather', 'metal_nut', 'pill', 'screw', 'tile', 'toothbrush', 'transistor', 'wood', 'zipper']
+        else:
+            raise Exception('Invalid dataset')
         min_max_l1, mean, std = [[param[origin_class_order.index(c)] for c in TrainConfigures.dataset.classes] for param in [min_max_l1, mean, std]]
 
         # different types of preprocessing pipelines, 'lcn' is for using LCN, 'aug{X}' for augmentations

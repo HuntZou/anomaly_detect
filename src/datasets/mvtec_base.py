@@ -292,7 +292,7 @@ class MvTec(VisionDataset, GTMapADDataset):
 
     @staticmethod
     def extract_archive(dataset_compress_file: str) -> str:
-        assert len(dataset_compress_file) > 0 and (dataset_compress_file.endswith('.tar.xz') or zipfile.is_zipfile(dataset_compress_file)), f'invalid dataset source file: {dataset_compress_file}'
+        assert (len(dataset_compress_file) > 0 and (dataset_compress_file.endswith('.tar.xz')) or zipfile.is_zipfile(dataset_compress_file)), f'invalid dataset source file, please check file path: {dataset_compress_file}'
         file_path, file_name = os.path.split(dataset_compress_file)
         extract_dir = os.path.join(file_path, TrainConfigures.dataset.dataset_extract_dir_name)
 
