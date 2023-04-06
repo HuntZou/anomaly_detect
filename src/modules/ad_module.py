@@ -8,8 +8,7 @@ from modules.stl_net import STL
 class ResNet(nn.Module):
     def __init__(self, in_channels=3, output_stride=8, backbone='resnet50', pretrained=True):
         super(ResNet, self).__init__()
-        model = models.resnet50(weights='ResNet50_Weights.DEFAULT')
-        # model.conv1 = torch.nn.Conv2d(12, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        model = models.wide_resnet50_2(weights='Wide_ResNet50_2_Weights.DEFAULT')
 
         # resnet 残差之前还有4个层
         self.layer0 = nn.Sequential(*list(model.children())[:4])
