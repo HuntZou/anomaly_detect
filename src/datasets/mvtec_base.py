@@ -302,11 +302,11 @@ class MvTec(VisionDataset, GTMapADDataset):
                 with tarfile.open(dataset_compress_file, 'r:xz') as f:
                     logger.info(f"extracting dataset tar.xz file: {dataset_compress_file} to {extract_dir}")
                     f.extractall(path=extract_dir)
-            if zipfile.is_zipfile(dataset_compress_file):
+            elif zipfile.is_zipfile(dataset_compress_file):
                 with zipfile.ZipFile(dataset_compress_file) as f:
                     logger.info(f"extracting dataset zip file: {dataset_compress_file} to {extract_dir}")
                     f.extractall(path=extract_dir)
-            if tarfile.is_tarfile(dataset_compress_file):
+            elif tarfile.is_tarfile(dataset_compress_file):
                 with tarfile.open(dataset_compress_file, 'r') as f:
                     logger.info(f"extracting dataset tar file: {dataset_compress_file} to {extract_dir}")
                     f.extractall(path=extract_dir)
