@@ -52,7 +52,7 @@ class LBPModule(torch.nn.Module):
         masks[torch.cat([torch.arange(0, quant_level ** 2, device=TrainConfigures.device).reshape(1, quant_level ** 2), self.idxs.permute([1, 0])]).tolist()] = 1
         self.masks = masks.unsqueeze(1).repeat([1, input_shape[-1] * input_shape[-2], 1, 1]).float()
 
-        self.unfold = torch.nn.Unfold(kernel_size=(3, 3), padding=1)
+        self.unfold = torch.nn.Unfold(kernel_size=(3, 3), stride=1, padding=1)
 
         # 注意力机制设置隐藏状态特征长度
         self.attention_hidden_feature_len = 22 ** 2
@@ -136,8 +136,7 @@ class LBPModule(torch.nn.Module):
         v = self.gen_v(x).unsqueeze(-1)
 
         # 将原本图像中的每个点都使用其周围的3*3的卷积核代替
-        x_after_pool = self.unfold(x_after_pool).reshape([x_after_pool.shape[0], math.prod(self.input_shape[-2:]), 3, 3])
-
+        x_after_pool = self.unfold(x_after_pool).permute([0, 2, 1]).reshape([x_after_pool.shape[0], math.prod(self.input_shape[-2:]), 3, 3])
         q = self.gen_q(x_after_pool.reshape([*x_after_pool.shape[:-2], -1]))
 
         x_after_pool = self.reduce_attention_hidden_feature(x_after_pool)

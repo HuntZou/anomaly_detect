@@ -35,6 +35,7 @@ if __name__ == "__main__":
             continue
         logger.info(f"load trained {class_name} model from: {pre_module_path}")
         net.load_state_dict(torch.load(pre_module_path, map_location=TrainConfigures.device))
+
         net = net.to(TrainConfigures.device)
 
         dataset = 'BTAD'
