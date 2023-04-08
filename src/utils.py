@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 import cv2
 import numpy as np
 import torch
+import torchvision.utils
 from PIL import Image
 from loguru import logger
 from torchvision import transforms
@@ -226,6 +227,22 @@ def generate_perlin_noise_2d(
     return np.sqrt(2) * ((1 - t[:, :, 1]) * n0 + t[:, :, 1] * n1)
 
 
+def visualize_feature_map(tensor):
+    """
+    tensor shape should be (n, w, h) where n denote the number of grey feature.
+    """
+    tensor = tensor.unsqueeze(1).cpu().detach()
+
+    x_min = tensor.view(tensor.shape[0], tensor.shape[1], -1).min(dim=2, keepdim=True)[0].unsqueeze(-1)
+    x_max = tensor.view(tensor.shape[0], tensor.shape[1], -1).max(dim=2, keepdim=True)[0].unsqueeze(-1)
+
+    tensor = (tensor - x_min) / (x_max - x_min)
+
+    grid = torchvision.utils.make_grid(tensor, nrow=int(math.sqrt(tensor.shape[0])), padding=8)
+    ndarr = grid.mul(255).add_(0.5).clamp_(0, 255).permute([1, 2, 0]).cpu().numpy().astype(np.uint8)
+    return Image.fromarray(ndarr)
+
+
 class DatasetConfig(ABC):
     home_dir_linux = r'/mnt/home/y21301045/datasets'
 
@@ -318,7 +335,8 @@ class MVTec(DatasetConfig):
 
     @property
     def classes(self):
-        return ['carpet', 'grid', 'leather', 'tile', 'wood', 'bottle', 'cable', 'capsule', 'hazelnut', 'metal_nut', 'pill', 'screw', 'toothbrush', 'transistor', 'zipper']
+        # return ['carpet', 'grid', 'leather', 'tile', 'wood', 'bottle', 'cable', 'capsule', 'hazelnut', 'metal_nut', 'pill', 'screw', 'toothbrush', 'transistor', 'zipper']
+        return ['bottle']
         # return ['toothbrush', 'capsule', 'screw', 'pill', 'carpet', 'cable', 'transistor', 'metal_nut', 'tile', 'wood', 'bottle', 'hazelnut', 'leather', 'grid', 'zipper']
 
     @property
