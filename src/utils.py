@@ -342,13 +342,13 @@ class MVTec(DatasetConfig):
     def batch_size(self):
         if self._debug:
             return 2
-        return 42
+        return 30
 
     @property
     def worker_num(self):
         if self._debug:
             return 0
-        return 12
+        return 13
 
     def find_ground_truth(self, img_path):
         img_path_split = os.path.split(img_path)

@@ -53,7 +53,7 @@ def main():
             net.load_state_dict(torch.load(pre_module_path, map_location=TrainConfigures.device))
 
         net = net.to(TrainConfigures.device)
-        optimizer = optim.SGD(net.parameters(), lr=TrainConfigures.learn_rate, weight_decay=TrainConfigures.weight_decay, momentum=0.9, nesterov=True)
+        # optimizer = optim.SGD(net.parameters(), lr=TrainConfigures.learn_rate, weight_decay=TrainConfigures.weight_decay, momentum=0.9, nesterov=True)
         optimizer = optim.Adam(params=net.parameters(), lr=1e-3)
         # lr_optimizer = optim.lr_scheduler.LambdaLR(optimizer, lambda ep: TrainConfigures.sched_param ** ep, verbose=True)
 
@@ -79,9 +79,6 @@ def main():
             # lr_optimizer.step()
 
             board.add_scalar(f"loss/train_loss_mean", loss_mean, epoch)
-            total, non_zero = count_non_zeros(net)
-            board.add_scalar(f"variable/non_zero_ratio", round(non_zero / total, 2), epoch)
-            board.add_scalar(f"variable/non_zero_count", non_zero, epoch)
 
             if epoch % TrainConfigures.test_interval == 0:
                 net = net.eval()
@@ -684,18 +681,6 @@ def L2_score(u, test_output):
     score = torch.norm(score, p=2, dim=1)
 
     return score
-
-
-def count_non_zeros(model):
-    nonzero = total = 0
-    for name, p in model.named_parameters():
-        tensor = p.data.cpu().numpy()
-        nz_count = np.count_nonzero(tensor)
-        total_params = np.prod(tensor.shape)
-        nonzero += nz_count
-        total += total_params
-    return total, nonzero
-
 
 def manual_random_seed():
     """

@@ -38,12 +38,17 @@ class LBPModule(torch.nn.Module):
         self.lbp_kernel = torch.cat([torch.cat(get_k(idx)) for idx in idx_pairs])
 
         self.reduce_channel = torch.nn.Conv2d(in_channels=self.input_shape[-3], out_channels=self.reduce_input_channel, kernel_size=3, padding=1)
-        self.conv = torch.nn.Conv2d(in_channels=self.reduce_input_channel, out_channels=256, kernel_size=3, padding=1)
-        self.conv_bn = torch.nn.BatchNorm2d(256)
-        self.conv_final = torch.nn.Conv2d(in_channels=256, out_channels=output_channel, kernel_size=3, padding=1)
-        self.conv_final_bn = torch.nn.BatchNorm2d(output_channel)
 
-        self.clamp = ClampModel()
+        self.conv = torch.nn.Sequential(
+            torch.nn.Conv2d(in_channels=self.reduce_input_channel, out_channels=256, kernel_size=3, padding=1),
+            torch.nn.BatchNorm2d(256),
+            torch.nn.LeakyReLU()
+        )
+        self.conv_final = torch.nn.Sequential(
+            torch.nn.Conv2d(in_channels=256, out_channels=output_channel, kernel_size=3, padding=1),
+            torch.nn.BatchNorm2d(output_channel),
+            torch.nn.LeakyReLU()
+        )
 
         self.quant_len = quant_level
 
@@ -55,8 +60,8 @@ class LBPModule(torch.nn.Module):
         self.unfold = torch.nn.Unfold(kernel_size=(3, 3), stride=1, padding=1)
 
         # 注意力机制设置隐藏状态特征长度
-        self.attention_hidden_feature_len = 22 ** 2
-        self.attention_embed_len = 8 ** 2
+        self.attention_hidden_feature_len = 16 ** 2
+        self.attention_embed_len = 4 ** 2
 
         self.reduce_attention_hidden_feature = torch.nn.Sequential(
             torch.nn.Conv2d(in_channels=math.prod(input_shape[-2:]), out_channels=self.attention_hidden_feature_len, kernel_size=1),
@@ -64,7 +69,8 @@ class LBPModule(torch.nn.Module):
         )
 
         self.gen_q = torch.nn.Sequential(
-            torch.nn.Linear(in_features=3 * 3, out_features=256),
+            # +1 是像素位置
+            torch.nn.Linear(in_features=3 * 3 + 1, out_features=256),
             torch.nn.LeakyReLU(),
             torch.nn.Linear(in_features=256, out_features=self.attention_embed_len),
             torch.nn.LeakyReLU()
@@ -86,9 +92,6 @@ class LBPModule(torch.nn.Module):
 
     def forward(self, x: torch.Tensor):
         batch_size = x.shape[0]
-
-        # 截断特征图，避免值域过大
-        x = self.clamp(x)
 
         # 池化降噪
         x = torch_func.avg_pool2d(input=x, kernel_size=self.pool_size, stride=1, padding=int(self.pool_size / 2))
@@ -137,7 +140,12 @@ class LBPModule(torch.nn.Module):
 
         # 将原本图像中的每个点都使用其周围的3*3的卷积核代替
         x_after_pool = self.unfold(x_after_pool).permute([0, 2, 1]).reshape([x_after_pool.shape[0], math.prod(self.input_shape[-2:]), 3, 3])
-        q = self.gen_q(x_after_pool.reshape([*x_after_pool.shape[:-2], -1]))
+
+        # 位置编码
+        positions = torch.arange(0, math.prod(self.input_shape[-2:]), device=TrainConfigures.device).reshape([1, -1, 1]).expand(batch_size * self.reduce_input_channel, -1, -1)
+
+        # 使用原始3*3像素和位置编码生成q
+        q = self.gen_q(torch.cat([x_after_pool.reshape([*x_after_pool.shape[:-2], -1]), positions], dim=2))
 
         x_after_pool = self.reduce_attention_hidden_feature(x_after_pool)
         k = self.gen_k(x_after_pool.reshape([*x_after_pool.shape[:-2], -1]))
@@ -148,30 +156,6 @@ class LBPModule(torch.nn.Module):
         x = x.reshape([batch_size, self.reduce_input_channel, *self.input_shape[-2:]])
 
         # 最后接两层卷积
-        x = torch_func.layer_norm(x, normalized_shape=x.shape[-2:])
-        x = torch_func.leaky_relu((self.conv_bn(self.conv(x))))
-        x = torch_func.leaky_relu(self.conv_final_bn(self.conv_final(x)))
+        x = self.conv(x)
+        x = self.conv_final(x)
         return x
-
-
-class ClampModel(torch.nn.Module):
-    def __init__(self):
-        super(ClampModel, self).__init__()
-        self.clamp_low_threshold = torch.nn.Parameter(data=torch.tensor(-150.), requires_grad=True)
-        self.clamp_high_threshold = torch.nn.Parameter(data=torch.tensor(150.), requires_grad=True)
-
-        self.clamp = Clamp().apply
-
-    def forward(self, x):
-        x = self.clamp(x, self.clamp_low_threshold, self.clamp_high_threshold)
-        return x
-
-
-class Clamp(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x, low_threshold, high_threshold):
-        return torch.clamp(x, low_threshold, high_threshold)
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        return grad_output, torch.sum(grad_output), torch.sum(grad_output)
