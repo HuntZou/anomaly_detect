@@ -1,5 +1,4 @@
 import os
-import random
 import sys
 
 import numpy as np
@@ -10,25 +9,20 @@ from sklearn.metrics import roc_auc_score, precision_recall_curve
 sys.path.append(os.path.abspath(os.path.join(os.path.abspath(__file__), '..', '..')))
 
 import visualize
+import utils
 from config import TrainConfigures
 from datasets import load_dataset
 from modules.ad_module import STLNet_AD
 
 if __name__ == "__main__":
     for class_name_idx in range(0, len(TrainConfigures.dataset.classes)):
-
-        seed = 613
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
-        np.random.seed(seed)
-        random.seed(seed)
+        utils.manual_random_seed()
 
         class_name = TrainConfigures.dataset.classes[class_name_idx]
         logger.info(f"Start export {class_name} test images")
 
         net = STLNet_AD(in_channels=3, pretrained=True, output_stride=16)
         pre_module_path = TrainConfigures.model_dir(f'{class_name}_PIXEL_AUROC')
-        # pre_module_path = TrainConfigures.model_dir(class_name)
 
         if not os.path.exists(pre_module_path):
             logger.error(f"{class_name} model not found from path: {pre_module_path}")

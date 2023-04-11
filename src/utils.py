@@ -268,6 +268,24 @@ def visualize_feature_map(tensor):
     return Image.fromarray(ndarr)
 
 
+def manual_random_seed():
+    """
+    设置随机种子，只需要在main函数中设置而不需要在其他文件中重新设置，它会影响整个程序，即使其他文件重新import torch
+    """
+
+    seed = 613
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.enabled = False
+
+
 class DatasetConfig(ABC):
     home_dir_linux = r'/mnt/home/y21301045/datasets'
 

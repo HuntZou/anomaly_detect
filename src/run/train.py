@@ -1,6 +1,5 @@
 import itertools
 import os
-import random
 import sys
 from os.path import join as path_join
 
@@ -17,6 +16,7 @@ from torch.utils.tensorboard import SummaryWriter
 sys.path.append(os.path.abspath(os.path.join(os.path.abspath(__file__), '..', '..')))
 
 import visualize
+import utils
 from config import TrainConfigures
 from datasets import load_dataset
 from modules.ad_module import STLNet_AD
@@ -24,7 +24,7 @@ from modules.ad_module import STLNet_AD
 
 def main():
     for class_name_idx in range(0, len(TrainConfigures.dataset.classes)):
-        manual_random_seed()
+        utils.manual_random_seed()
 
         class_name = TrainConfigures.dataset.classes[class_name_idx]
         board = SummaryWriter(path_join(TrainConfigures.output_dir, "logs", class_name))
@@ -681,17 +681,6 @@ def L2_score(u, test_output):
     score = torch.norm(score, p=2, dim=1)
 
     return score
-
-def manual_random_seed():
-    """
-    设置随机种子，只需要在main函数中设置而不需要在其他文件中重新设置，它会影响整个程序，即使其他文件重新import torch
-    """
-
-    seed = 613
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
 
 
 if __name__ == '__main__':

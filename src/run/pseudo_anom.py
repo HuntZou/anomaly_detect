@@ -1,10 +1,7 @@
 import os
-import random
 import sys
 
 import matplotlib.pyplot as plt
-import numpy as np
-import torch
 from loguru import logger
 
 sys.path.append(os.path.abspath(os.path.join(os.path.abspath(__file__), '..', '..')))
@@ -13,7 +10,7 @@ import utils
 from config import TrainConfigures
 from datasets.mvtec import ADMvTec
 
-generation_count = 100
+generation_count = 80
 
 if __name__ == '__main__':
     supervise_mode = 'malformed_normal_gt'
@@ -22,12 +19,7 @@ if __name__ == '__main__':
     online_supervision = True
 
     for class_name_idx in range(0, len(TrainConfigures.dataset.classes)):
-
-        seed = 613
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
-        np.random.seed(seed)
-        random.seed(seed)
+        utils.manual_random_seed()
 
         class_name = TrainConfigures.dataset.classes[class_name_idx]
         dataset = ADMvTec(
