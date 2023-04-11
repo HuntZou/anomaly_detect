@@ -186,23 +186,17 @@ def gen_shuffle_img(original_image, block_num=16, texture_radio=0.3):
     return new_image
 
 
-def interpolate(t):
-    """
-    让噪声像素间过渡更自然
-    """
-    return t * t * t * (t * (t * 6 - 15) + 10)
-
-
-def generate_perlin_noise_2d(
-        shape, res, tileable=(False, False), interpolate=interpolate
+def generate_perlin_noise_mask(
+        shape, res, tileable=(False, False), interpolate=lambda t: t * t * t * (t * (t * 6 - 15) + 10)
 ):
     """
     生成柏林噪声并二值化
+    晶格数量需要能被图像大小整除
+    interpolate 让噪声像素间过渡更自然
     """
     delta = (res[0] / shape[0], res[1] / shape[1])
     d = (shape[0] // res[0], shape[1] // res[1])
-    grid = np.mgrid[0:res[0]:delta[0], 0:res[1]:delta[1]] \
-               .transpose(1, 2, 0) % 1
+    grid = np.mgrid[0:res[0]:delta[0], 0:res[1]:delta[1]].transpose(1, 2, 0) % 1
     # Gradients
     angles = 2 * np.pi * np.random.rand(res[0] + 1, res[1] + 1)
     gradients = np.dstack((np.cos(angles), np.sin(angles)))
@@ -224,7 +218,38 @@ def generate_perlin_noise_2d(
     t = interpolate(grid)
     n0 = n00 * (1 - t[:, :, 0]) + t[:, :, 0] * n10
     n1 = n01 * (1 - t[:, :, 0]) + t[:, :, 0] * n11
-    return np.sqrt(2) * ((1 - t[:, :, 1]) * n0 + t[:, :, 1] * n1)
+    noise = np.sqrt(2) * ((1 - t[:, :, 1]) * n0 + t[:, :, 1] * n1)
+
+    # 随机旋转
+    M = cv2.getRotationMatrix2D([s / 2 for s in shape], random.random() * 90, 1)
+    noise = cv2.warpAffine(noise, M, shape)
+
+    return noise
+
+
+def gen_perlin_noise(img, img_fg):
+    """
+    生成柏林噪声，前景图片用来筛选噪声区域
+    """
+    lattice_size = random.choices([2, 4, 8, 16, 64], k=2, weights=[1, 6, 9, 7, 1])
+    perlin_noise = generate_perlin_noise_mask(img.shape[1:], lattice_size)
+    perlin_noise = np.array(perlin_noise)
+    perlin_noise = (perlin_noise - perlin_noise.min()) * 255 / (perlin_noise.max() - perlin_noise.min())
+    _, perlin_noise = cv2.threshold(np.array(perlin_noise), 210, 1, cv2.THRESH_BINARY)
+    # 使用前景限定噪声范围
+    perlin_noise = perlin_noise * img_fg
+    perlin_noise = np.repeat((perlin_noise * img_fg)[np.newaxis, ...], 3, axis=0)
+    # 生成噪声纹理图案
+    shuffle_img = gen_shuffle_img(img, block_num=min(lattice_size), texture_radio=0.3)
+    # 生成伪异常图像
+    pseudo_anorm = perlin_noise * shuffle_img.transpose([2, 0, 1])
+    # 将伪异常添加到原图上
+    pseudo_img = img * (1 - perlin_noise) + pseudo_anorm
+    # gt = torch.tensor(perlin_noise[0])
+    # 将rgb转灰度
+    gt = torch.clamp(((pseudo_img - img).abs() * torch.tensor([0.299, 0.587, 0.114]).reshape([3, 1, 1])).sum(0), 0, 1)
+    label = 1 if torch.sum(gt) > 0 else 0
+    return pseudo_img, gt, label
 
 
 def visualize_feature_map(tensor):

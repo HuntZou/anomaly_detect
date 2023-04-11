@@ -1,3 +1,4 @@
+import math
 import random
 import traceback
 from itertools import cycle
@@ -5,23 +6,20 @@ from typing import List, Tuple
 
 import numpy as np
 import torch
+import torchvision.transforms as transforms
+from PIL import Image
 
 import utils
 from datasets.bases import TorchvisionDataset
 from datasets.outlier_exposure.mvtec import OEMvTec
 from datasets.preprocessing import ImgGTTargetTransform
 
-from PIL import Image
-import math
-import torchvision.transforms as transforms
-import cv2
-
 
 class OnlineSupervisor(ImgGTTargetTransform):
     invert_threshold = 0.025
 
     def __init__(self, ds: TorchvisionDataset, supervise_mode: str, noise_mode: str, oe_limit: int = np.infty,
-                 p: float = 0.6, exclude: List[str] = ()):
+                 p: float = 0.7, exclude: List[str] = ()):
         """
         This class is used as a Transform parameter for torchvision datasets.
         这个类用作torchvision数据集的Transform参数。
@@ -54,14 +52,14 @@ class OnlineSupervisor(ImgGTTargetTransform):
         if noise_mode == 'mvtec':
             self.noise_sampler = cycle(
                 OEMvTec(
-                    (1, ) + ds.raw_shape, ds.normal_classes, limit_var=oe_limit,
+                    (1,) + ds.raw_shape, ds.normal_classes, limit_var=oe_limit,
                     logger=ds.logger, root=ds.root
                 ).data_loader()
             )
         elif noise_mode == 'mvtec_gt':
             self.noise_sampler = cycle(
                 OEMvTec(
-                    (1, ) + ds.raw_shape, ds.normal_classes, limit_var=oe_limit,
+                    (1,) + ds.raw_shape, ds.normal_classes, limit_var=oe_limit,
                     logger=ds.logger, gt=True, root=ds.root
                 ).data_loader()
             )
@@ -85,8 +83,8 @@ class OnlineSupervisor(ImgGTTargetTransform):
             # img_fg = np.ones(img.shape[1:])
 
             supervise_mode = self.supervise_mode
-            if random.random() < 0.85:
-                if random.random() < 0.75:
+            if random.random() < 0.9:
+                if random.random() < 0:
                     """
                     添加cutpaste噪声
                     """
@@ -95,21 +93,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
                     )
                 else:
                     # 生成柏林噪声图案
-                    perlin_noise = utils.generate_perlin_noise_2d(img.shape[1:], (16, 16))
-                    perlin_noise = np.array(perlin_noise)
-                    perlin_noise = (perlin_noise - perlin_noise.min()) * 255 / (perlin_noise.max() - perlin_noise.min())
-                    _, perlin_noise = cv2.threshold(np.array(perlin_noise), 200, 1, cv2.THRESH_BINARY)
-                    # 使用前景限定噪声范围
-                    perlin_noise = perlin_noise * img_fg
-                    perlin_noise = np.repeat((perlin_noise * img_fg)[np.newaxis, ...], 3, axis=0)
-                    # 生成噪声纹理图案
-                    shuffle_img = utils.gen_shuffle_img(img, block_num=16, texture_radio=0.3)
-                    # 生成伪异常图像
-                    pseudo_anorm = perlin_noise * shuffle_img.transpose([2, 0, 1])
-                    # 将伪异常添加到原图上
-                    img = img * (1 - perlin_noise) + pseudo_anorm
-                    gt = torch.tensor(perlin_noise[0])
-                    target = 1 if np.sum(perlin_noise) > 0 else 0
+                    img, gt, target = utils.gen_perlin_noise(img, img_fg)
             else:
                 """
                 添加随机颜色块噪声，生成一张和原图大小一样的带有很多色块的噪声图，加到原图上
@@ -168,12 +152,12 @@ class OnlineSupervisor(ImgGTTargetTransform):
         anom = img.clone()
 
         # invert noise if difference of malformed and original is less than threshold and inverted difference is higher
-        diff = ((anom.int() + generated_noise).clamp(0, 255) - anom.int())    # 对噪声的上界进行限制
-        diff = diff.reshape(anom.size(0), -1).sum(1).float().div(np.prod(anom.shape)).abs()    # 求要添加的噪声均值
+        diff = ((anom.int() + generated_noise).clamp(0, 255) - anom.int())  # 对噪声的上界进行限制
+        diff = diff.reshape(anom.size(0), -1).sum(1).float().div(np.prod(anom.shape)).abs()  # 求要添加的噪声均值
         diffi = ((anom.int() - generated_noise).clamp(0, 255) - anom.int())
         diffi = diffi.reshape(anom.size(0), -1).sum(1).float().div(np.prod(anom.shape)).abs()
         inv = [i for i, (d, di) in enumerate(zip(diff, diffi)) if d < invert_threshold and di > d]
-        generated_noise[inv] = -generated_noise[inv]    # 如果可添加的噪声下界绝对值大于上界，并且噪声上界绝对值大于某个阈值，则添加负的噪声（图片变暗）
+        generated_noise[inv] = -generated_noise[inv]  # 如果可添加的噪声下界绝对值大于上界，并且噪声上界绝对值大于某个阈值，则添加负的噪声（图片变暗）
 
         anom = (anom.int() + generated_noise).clamp(0, 255).byte()  # 原始图片与噪声相加
 
@@ -182,7 +166,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
         if use_gt:
             img = img.squeeze()
             anom = anom.squeeze()
-            gt = (img != anom).max(0)[0].clone().float()    # ???
+            gt = (img != anom).max(0)[0].clone().float()  # ???
             # gt = gt.unsqueeze(1)  # value 1 will be put to anom_label in mvtec_bases get_item
         return anom, gt, t
 
@@ -208,7 +192,6 @@ class OnlineSupervisor(ImgGTTargetTransform):
 
         augmented = img.copy()
         for i in range(random.randint(0, 2)):
-
             # ratio between area_ratio[0] and area_ratio[1]
             ratio_area = random.uniform(area_ratio[0], area_ratio[1]) * w * h
 
@@ -218,8 +201,8 @@ class OnlineSupervisor(ImgGTTargetTransform):
                 torch.empty(1).uniform_(log_ratio[0], log_ratio[1])
             ).item()  # 取出单元素张量的元素值，并返回该值，数值类型(如‘整形’)不变
 
-            cut_w = max(int(round(math.sqrt(ratio_area * aspect)) * (np.sum(img_fg)/(img_fg.shape[0] * img_fg.shape[1]))), 1)  # 剪切的宽
-            cut_h = max(int(round(math.sqrt(ratio_area / aspect)) * (np.sum(img_fg)/(img_fg.shape[0] * img_fg.shape[1]))), 1)  # 剪切的高
+            cut_w = max(int(round(math.sqrt(ratio_area * aspect)) * (np.sum(img_fg) / (img_fg.shape[0] * img_fg.shape[1]))), 1)  # 剪切的宽
+            cut_h = max(int(round(math.sqrt(ratio_area / aspect)) * (np.sum(img_fg) / (img_fg.shape[0] * img_fg.shape[1]))), 1)  # 剪切的高
 
             # 只从前景部分取patch
             probs = img_fg.flatten() / np.sum(img_fg)
@@ -231,7 +214,6 @@ class OnlineSupervisor(ImgGTTargetTransform):
             patch = img.crop(box)
             patch = colorJitter(patch)
             # patch = mytransform(patch)
-
 
             # if random.random() < 0.5:
             #     sigma = np.random.uniform(0.1, 2.0)
@@ -269,7 +251,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
 
         return augmented
 
-    def CutPasteScar(self, img: torch.Tensor, gt: torch.Tensor, target: int, ds: TorchvisionDataset, img_fg, width=[1,10], height=[10,40], rotation=[-45,45]):
+    def CutPasteScar(self, img: torch.Tensor, gt: torch.Tensor, target: int, ds: TorchvisionDataset, img_fg, width=[1, 10], height=[10, 40], rotation=[-45, 45]):
         # cutPasteScar是必须的，但也会有一定概率同时出现cutPasteNormal
         if random.random() < 0.75:
             augmented = self.__CutPasteNormal(img, img_fg)
@@ -314,11 +296,9 @@ class OnlineSupervisor(ImgGTTargetTransform):
             #     sigma = np.random.uniform(0.1, 2.0)
             #     patch = patch.filter(ImageFilter.GaussianBlur(radius=sigma))
 
-
             # rotate
-            rot_deg = random.uniform(rotation[0],rotation[1])
+            rot_deg = random.uniform(rotation[0], rotation[1])
             patch = patch.convert("RGBA").rotate(rot_deg, expand=True)
-
 
             # 只粘贴到前景区域
             index = np.random.choice(len(probs), p=probs)
@@ -327,7 +307,6 @@ class OnlineSupervisor(ImgGTTargetTransform):
 
             mask = patch.split()[-1]
             patch = patch.convert("RGB")
-
 
             augmented = augmented.copy()
             augmented.paste(patch, (to_location_w, to_location_h), mask=mask)
@@ -347,32 +326,27 @@ class OnlineSupervisor(ImgGTTargetTransform):
         return augmented, gt, t
 
 
-
-
-
 class AddSaltPepperNoise(object):
 
     def __init__(self, density=0):
         self.density = density
 
     def __call__(self, img):
-
-        img = np.array(img)                                                             # 图片转numpy
+        img = np.array(img)  # 图片转numpy
         h, w, c = img.shape
         Nd = self.density
         Sd = 1 - Nd
-        mask = np.random.choice((0, 1, 2), size=(h, w, 1), p=[Nd/2.0, Nd/2.0, Sd])      # 生成一个通道的mask
-        mask = np.repeat(mask, c, axis=2)                                               # 在通道的维度复制，生成彩色的mask
-        img[mask == 0] = 0                                                              # 椒
-        img[mask == 1] = 255                                                            # 盐
-        img= Image.fromarray(img.astype('uint8')).convert('RGB')                        # numpy转图片
+        mask = np.random.choice((0, 1, 2), size=(h, w, 1), p=[Nd / 2.0, Nd / 2.0, Sd])  # 生成一个通道的mask
+        mask = np.repeat(mask, c, axis=2)  # 在通道的维度复制，生成彩色的mask
+        img[mask == 0] = 0  # 椒
+        img[mask == 1] = 255  # 盐
+        img = Image.fromarray(img.astype('uint8')).convert('RGB')  # numpy转图片
         return img
 
 
 class AddGaussianNoise(object):
 
     def __init__(self, mean=0.0, variance=1.0, amplitude=1.0):
-
         self.mean = mean
         self.variance = variance
         self.amplitude = amplitude
@@ -383,6 +357,6 @@ class AddGaussianNoise(object):
         N = self.amplitude * np.random.normal(loc=self.mean, scale=self.variance, size=(h, w, 1))
         N = np.repeat(N, c, axis=2)
         img = N + img
-        img[img > 255] = 255                       # 避免有值超过255而反转
+        img[img > 255] = 255  # 避免有值超过255而反转
         img = Image.fromarray(img.astype('uint8')).convert('RGB')
         return img
