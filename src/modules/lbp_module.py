@@ -7,13 +7,17 @@ from config import TrainConfigures
 
 
 class LBPModule(torch.nn.Module):
-    def __init__(self, input_shape: list[int], kernel_size: int, output_channel=128, pool_size=3, quant_level=8, reduce_input_channel=4):
+    def __init__(self, input_shape: list[int], kernel_size: int, output_channel=128, pool_size=2, quant_level=8, reduce_input_channel=4):
+        """
+        :param kernel_size: lbp核的大小，是一个 8*8 的核，如果大于3，则只会采样核邻域中的8个像素
+        """
         assert kernel_size % 2 == 1, "size must be an odd number"
 
         super().__init__()
         self.kernel_size = kernel_size
         self.pool_size = pool_size
-        self.input_shape = input_shape
+        self.input_shape_origin = input_shape
+        self.input_shape = input_shape[:1] + [i // pool_size for i in input_shape[-2:]]
         self.reduce_input_channel = reduce_input_channel
 
         # 绕中心像素旋转的轴，轴两端所在的像素点坐标（固定只有四个轴方向）
@@ -55,7 +59,7 @@ class LBPModule(torch.nn.Module):
         self.idxs = torch.cartesian_prod(torch.arange(0, quant_level, device=TrainConfigures.device), torch.arange(0, quant_level, device=TrainConfigures.device))
         masks = torch.zeros([quant_level ** 2, quant_level, quant_level], device=TrainConfigures.device)
         masks[torch.cat([torch.arange(0, quant_level ** 2, device=TrainConfigures.device).reshape(1, quant_level ** 2), self.idxs.permute([1, 0])]).tolist()] = 1
-        self.masks = masks.unsqueeze(1).repeat([1, input_shape[-1] * input_shape[-2], 1, 1]).float()
+        self.masks = masks.unsqueeze(1).repeat([1, self.input_shape[-1] * self.input_shape[-2], 1, 1]).float()
 
         self.unfold = torch.nn.Unfold(kernel_size=(3, 3), stride=1, padding=1)
 
@@ -64,7 +68,7 @@ class LBPModule(torch.nn.Module):
         self.attention_embed_len = 4 ** 2
 
         self.reduce_attention_hidden_feature = torch.nn.Sequential(
-            torch.nn.Conv2d(in_channels=math.prod(input_shape[-2:]), out_channels=self.attention_hidden_feature_len, kernel_size=1),
+            torch.nn.Conv2d(in_channels=math.prod(self.input_shape[-2:]), out_channels=self.attention_hidden_feature_len, kernel_size=1),
             torch.nn.LeakyReLU()
         )
 
@@ -93,15 +97,15 @@ class LBPModule(torch.nn.Module):
     def forward(self, x: torch.Tensor):
         batch_size = x.shape[0]
 
-        # 池化降噪
-        x = torch_func.avg_pool2d(input=x, kernel_size=self.pool_size, stride=1, padding=int(self.pool_size / 2))
+        # 池化降噪，并减小特征图尺寸
+        x = torch_func.avg_pool2d(input=x, kernel_size=self.pool_size)
 
         # 原始特征图通道数较多，这里将其减少
         x = self.reduce_channel(x)
 
         # 原始特征图副本，用于与后面的结果concatenate
         x = x.reshape([batch_size * self.reduce_input_channel, 1, *self.input_shape[-2:]])
-        x_after_pool = x.clone()
+        x_after_pool = x
 
         # 计算中心像素和其邻域像素的各个梯度
         x = torch_func.conv2d(x, self.lbp_kernel, padding=int(self.kernel_size / 2))
@@ -155,7 +159,11 @@ class LBPModule(torch.nn.Module):
 
         x = x.reshape([batch_size, self.reduce_input_channel, *self.input_shape[-2:]])
 
+        # 池化后的上采样到原始特征图尺寸
+        x = torch.nn.functional.interpolate(x, size=self.input_shape_origin[-2:], mode='bilinear', align_corners=False)
+
         # 最后接两层卷积
         x = self.conv(x)
         x = self.conv_final(x)
+
         return x

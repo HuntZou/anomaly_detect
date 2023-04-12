@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from modules.lbp_module import LBPModule
+
 from config import TrainConfigures
+from modules.lbp_module import LBPModule
 
 
 class ConvBNReLU(nn.Module):
@@ -333,8 +334,8 @@ class STL(nn.Module):
         lbp_input_shape = [768, int(TrainConfigures.crop_size[0] / 4), int(TrainConfigures.crop_size[1] / 4)]
         lbp_output_channel = 128
         self.lbp1 = LBPModule(input_shape=lbp_input_shape, kernel_size=3, output_channel=lbp_output_channel, pool_size=1)
-        self.lbp2 = LBPModule(input_shape=lbp_input_shape, kernel_size=7, output_channel=lbp_output_channel, pool_size=3)
-        self.lbp3 = LBPModule(input_shape=lbp_input_shape, kernel_size=11, output_channel=lbp_output_channel, pool_size=5)
+        self.lbp2 = LBPModule(input_shape=lbp_input_shape, kernel_size=3, output_channel=lbp_output_channel, pool_size=2)
+        self.lbp3 = LBPModule(input_shape=lbp_input_shape, kernel_size=3, output_channel=lbp_output_channel, pool_size=4)
 
         self.final_conv = ConvBNReLU(768 + lbp_output_channel * 3, 1024, 1, 1, 0)
 
