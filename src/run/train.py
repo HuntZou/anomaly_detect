@@ -22,193 +22,192 @@ from datasets import load_dataset
 from modules.ad_module import STLNet_AD
 
 
-def main():
-    for class_name_idx in range(0, len(TrainConfigures.dataset.classes)):
-        utils.manual_random_seed()
+def train_class(class_name_idx):
+    utils.manual_random_seed()
 
-        class_name = TrainConfigures.dataset.classes[class_name_idx]
-        board = SummaryWriter(path_join(TrainConfigures.output_dir, "logs", class_name))
-        logger.info(f'start training class: {class_name}')
+    class_name = TrainConfigures.dataset.classes[class_name_idx]
+    board = SummaryWriter(path_join(TrainConfigures.output_dir, "logs", class_name))
+    logger.info(f'start training class: {class_name}')
 
-        dataset = 'BTAD'
-        supervise_mode = 'malformed_normal_gt'
-        preproc = 'lcnaug1'
-        noise_mode = 'confetti'
-        online_supervision = True
+    dataset = 'BTAD'
+    supervise_mode = 'malformed_normal_gt'
+    preproc = 'lcnaug1'
+    noise_mode = 'confetti'
+    online_supervision = True
 
-        ds = load_dataset(
-            dataset, os.path.abspath(TrainConfigures.dataset.dataset_path), class_name_idx, preproc, supervise_mode,
-            noise_mode, online_supervision, TrainConfigures.nominal_label,
-        )
+    ds = load_dataset(
+        dataset, os.path.abspath(TrainConfigures.dataset.dataset_path), class_name_idx, preproc, supervise_mode,
+        noise_mode, online_supervision, TrainConfigures.nominal_label,
+    )
 
-        train_loader, test_loader = ds.loaders(batch_size=TrainConfigures.dataset.batch_size, num_workers=TrainConfigures.dataset.worker_num)
+    train_loader, test_loader = ds.loaders(batch_size=TrainConfigures.dataset.batch_size, num_workers=TrainConfigures.dataset.worker_num)
 
-        net = STLNet_AD(in_channels=3, pretrained=True, output_stride=16)
+    net = STLNet_AD(in_channels=3, pretrained=True, output_stride=16)
 
-        # load pre-train module if exist
-        # pre_module_path = TrainConfigures.model_dir(f'{class_name}_LABEL_AUROC')
-        pre_module_path = TrainConfigures.model_dir(f'{class_name}_PIXEL_AUROC')
-        if os.path.exists(pre_module_path):
-            logger.info(f'load pre-train module: {class_name} from path: {pre_module_path}')
-            net.load_state_dict(torch.load(pre_module_path, map_location=TrainConfigures.device))
+    # load pre-train module if exist
+    # pre_module_path = TrainConfigures.model_dir(f'{class_name}_LABEL_AUROC')
+    pre_module_path = TrainConfigures.model_dir(f'{class_name}_PIXEL_AUROC')
+    if os.path.exists(pre_module_path):
+        logger.info(f'load pre-train module: {class_name} from path: {pre_module_path}')
+        net.load_state_dict(torch.load(pre_module_path, map_location=TrainConfigures.device))
 
-        net = net.to(TrainConfigures.device)
-        # optimizer = optim.SGD(net.parameters(), lr=TrainConfigures.learn_rate, weight_decay=TrainConfigures.weight_decay, momentum=0.9, nesterov=True)
-        optimizer = optim.Adam(params=net.parameters(), lr=1e-3)
-        # lr_optimizer = optim.lr_scheduler.LambdaLR(optimizer, lambda ep: TrainConfigures.sched_param ** ep, verbose=True)
+    net = net.to(TrainConfigures.device)
+    # optimizer = optim.SGD(net.parameters(), lr=TrainConfigures.learn_rate, weight_decay=TrainConfigures.weight_decay, momentum=0.9, nesterov=True)
+    optimizer = optim.Adam(params=net.parameters(), lr=1e-3)
+    # lr_optimizer = optim.lr_scheduler.LambdaLR(optimizer, lambda ep: TrainConfigures.sched_param ** ep, verbose=True)
 
-        label_roc_observer = ScoreObserver('LABEL_AUROC', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=TrainConfigures.span_of_best)
-        pixel_roc_observer = ScoreObserver('PIXEL_AUROC', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=TrainConfigures.span_of_best)
-        pixel_pro_observer = ScoreObserver('PIXEL_AUPRO', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=TrainConfigures.span_of_best)
+    label_roc_observer = ScoreObserver('LABEL_AUROC', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=TrainConfigures.span_of_best)
+    pixel_roc_observer = ScoreObserver('PIXEL_AUROC', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=TrainConfigures.span_of_best)
+    pixel_pro_observer = ScoreObserver('PIXEL_AUPRO', class_name, TrainConfigures.epoch, TrainConfigures.epoch * 3, threshold=TrainConfigures.span_of_best)
 
-        for epoch in itertools.count():
+    for epoch in itertools.count():
 
-            # Train
-            net = net.train()
-            loss_mean = 0
-            for n_batch, data in enumerate(train_loader):
-                if n_batch % int(len(train_loader) / 10) == 0:
-                    logger.info(f'epoch: {epoch}, \t class: {class_name}, \t process: {n_batch} of {len(train_loader)}, \t progress: {int(round(n_batch / len(train_loader), 2) * 100)}%')
-                inputs, labels, gtmaps = data[0].to(TrainConfigures.device, non_blocking=True), data[1], data[2].to(TrainConfigures.device, non_blocking=True)
-                anorm_heatmap, score_map = net(inputs)
-                optimizer.zero_grad()
-                loss = fcdd_loss(anorm_heatmap, score_map, gtmaps, labels)
-                loss.backward()
-                optimizer.step()
-                loss_mean += loss.item() / len(train_loader)
-            # lr_optimizer.step()
+        # Train
+        net = net.train()
+        loss_mean = 0
+        for n_batch, data in enumerate(train_loader):
+            if n_batch % int(len(train_loader) / 10) == 0:
+                logger.info(f'epoch: {epoch}, \t class: {class_name}, \t process: {n_batch} of {len(train_loader)}, \t progress: {int(round(n_batch / len(train_loader), 2) * 100)}%')
+            inputs, labels, gtmaps = data[0].to(TrainConfigures.device, non_blocking=True), data[1], data[2].to(TrainConfigures.device, non_blocking=True)
+            anorm_heatmap, score_map = net(inputs)
+            optimizer.zero_grad()
+            loss = fcdd_loss(anorm_heatmap, score_map, gtmaps, labels)
+            loss.backward()
+            optimizer.step()
+            loss_mean += loss.item() / len(train_loader)
+        # lr_optimizer.step()
 
-            board.add_scalar(f"loss/train_loss_mean", loss_mean, epoch)
+        board.add_scalar(f"loss/train_loss_mean", loss_mean, epoch)
 
-            if epoch % TrainConfigures.test_interval == 0:
-                net = net.eval()
-                test_image_list = list()
-                gt_label_list = list()
-                gt_mask_list = list()
-                score_maps = list()
-                # Test
-                with torch.no_grad():
-                    for n_batch, data in enumerate(test_loader):
-                        if n_batch % int(len(test_loader) / 3) == 0:
-                            logger.info(f'test {class_name} model,\tprocess: {n_batch} of {len(test_loader)},\tprogress: {int(round(n_batch / len(test_loader), 2) * 100)}%')
-                        inputs, labels, masks = data
-                        test_image_list.extend(t2np(inputs))
-                        gt_label_list.extend(t2np(labels))
-                        gt_mask_list.extend(t2np(masks))
-                        inputs = inputs.to(TrainConfigures.device)
-                        _, score_map = net(inputs)
+        if epoch % TrainConfigures.test_interval == 0:
+            net = net.eval()
+            test_image_list = list()
+            gt_label_list = list()
+            gt_mask_list = list()
+            score_maps = list()
+            # Test
+            with torch.no_grad():
+                for n_batch, data in enumerate(test_loader):
+                    if n_batch % int(len(test_loader) / 3) == 0:
+                        logger.info(f'test {class_name} model,\tprocess: {n_batch} of {len(test_loader)},\tprogress: {int(round(n_batch / len(test_loader), 2) * 100)}%')
+                    inputs, labels, masks = data
+                    test_image_list.extend(t2np(inputs))
+                    gt_label_list.extend(t2np(labels))
+                    gt_mask_list.extend(t2np(masks))
+                    inputs = inputs.to(TrainConfigures.device)
+                    _, score_map = net(inputs)
 
-                        score_maps += score2(score_map).detach().cpu().tolist()
+                    score_maps += score2(score_map).detach().cpu().tolist()
 
-                score_maps = torch.tensor(score_maps, dtype=torch.double).squeeze()
-                score_maps = F.interpolate(score_maps.unsqueeze(1), TrainConfigures.crop_size).squeeze().numpy()
-                score_maps = score_maps - score_maps.min()
-                score_maps = score_maps / score_maps.max()
+            score_maps = torch.tensor(score_maps, dtype=torch.double).squeeze()
+            score_maps = F.interpolate(score_maps.unsqueeze(1), TrainConfigures.crop_size).squeeze().numpy()
+            score_maps = score_maps - score_maps.min()
+            score_maps = score_maps / score_maps.max()
 
-                score_labels = np.max(score_maps, axis=(1, 2))
-                gt_labels = np.asarray(gt_label_list, dtype=bool)
-                label_roc = roc_auc_score(gt_labels, score_labels)
-                best_label_roc_already = label_roc_observer.update(100.0 * label_roc, epoch, net)
-                board.add_scalar("ROC/label_roc", label_roc, epoch)
+            score_labels = np.max(score_maps, axis=(1, 2))
+            gt_labels = np.asarray(gt_label_list, dtype=bool)
+            label_roc = roc_auc_score(gt_labels, score_labels)
+            best_label_roc_already = label_roc_observer.update(100.0 * label_roc, epoch, net)
+            board.add_scalar("ROC/label_roc", label_roc, epoch)
 
-                gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
-                pixel_roc = roc_auc_score(gt_mask.flatten(), score_maps.flatten())
-                best_pixel_roc_already = pixel_roc_observer.update(100.0 * pixel_roc, epoch, net)
-                board.add_scalar("ROC/pixel_roc", pixel_roc, epoch)
+            gt_mask = np.squeeze(np.asarray(gt_mask_list, dtype=bool), axis=1)
+            pixel_roc = roc_auc_score(gt_mask.flatten(), score_maps.flatten())
+            best_pixel_roc_already = pixel_roc_observer.update(100.0 * pixel_roc, epoch, net)
+            board.add_scalar("ROC/pixel_roc", pixel_roc, epoch)
 
-                if TrainConfigures.calc_aupro:
-                    """
-                    calculate segmentation AUPRO
-                    AUPRO is expensive to compute
-                    from https://github.com/YoungGod/DFR
-                    """
-                    max_step = 1000
-                    expect_fpr = 0.3  # default 30%
-                    max_th = score_maps.max()
-                    min_th = score_maps.min()
-                    delta = (max_th - min_th) / max_step
-                    ious_mean = []
-                    ious_std = []
-                    pros_mean = []
-                    pros_std = []
-                    threds = []
-                    fprs = []
-                    binary_score_maps = np.zeros_like(score_maps, dtype=bool)
-                    for step in range(max_step):
-                        thred = max_th - step * delta
-                        # segmentation
-                        binary_score_maps[score_maps <= thred] = 0
-                        binary_score_maps[score_maps > thred] = 1
-                        pro = []  # per region overlap
-                        iou = []  # per image iou
-                        # pro: find each connected gt region, compute the overlapped pixels between the gt region and predicted region
-                        # iou: for each image, compute the ratio, i.e. intersection/union between the gt and predicted binary map
-                        for i in range(len(binary_score_maps)):  # for i th image
-                            # pro (per region level)
-                            label_map = label(gt_mask[i], connectivity=2)
-                            props = regionprops(label_map)
-                            for prop in props:
-                                x_min, y_min, x_max, y_max = prop.bbox  # find the bounding box of an anomaly region
-                                cropped_pred_label = binary_score_maps[i][x_min:x_max, y_min:y_max]
-                                # cropped_mask = gt_mask[i][x_min:x_max, y_min:y_max]   # bug!
-                                cropped_mask = prop.filled_image  # corrected!
-                                intersection = np.logical_and(cropped_pred_label, cropped_mask).astype(np.float32).sum()
-                                pro.append(intersection / prop.area)
-                            # iou (per image level)
-                            intersection = np.logical_and(binary_score_maps[i], gt_mask[i]).astype(np.float32).sum()
-                            union = np.logical_or(binary_score_maps[i], gt_mask[i]).astype(np.float32).sum()
-                            if gt_mask[i].any() > 0:  # when the gt have no anomaly pixels, skip it
-                                iou.append(intersection / union)
-                        # against steps and average metrics on the testing data
-                        ious_mean.append(np.array(iou).mean())
-                        # print("per image mean iou:", np.array(iou).mean())
-                        ious_std.append(np.array(iou).std())
-                        pros_mean.append(np.array(pro).mean())
-                        pros_std.append(np.array(pro).std())
-                        # fpr for pro-auc
-                        gt_masks_neg = ~gt_mask
-                        fpr = np.logical_and(gt_masks_neg, binary_score_maps).sum() / gt_masks_neg.sum()
-                        fprs.append(fpr)
-                        threds.append(thred)
-                        # as array
-                    threds = np.array(threds)
-                    pros_mean = np.array(pros_mean)
-                    pros_std = np.array(pros_std)
-                    fprs = np.array(fprs)
-                    ious_mean = np.array(ious_mean)
-                    ious_std = np.array(ious_std)
-                    # best per image iou
-                    best_miou = ious_mean.max()
-                    # print(f"Best IOU: {best_miou:.4f}")
-                    # default 30% fpr vs pro, pro_auc
-                    idx = fprs <= expect_fpr  # find the indexs of fprs that is less than expect_fpr (default 0.3)
-                    fprs_selected = fprs[idx]
-                    fprs_selected = rescale(fprs_selected)  # rescale fpr [0,0.3] -> [0, 1]
-                    pros_mean_selected = pros_mean[idx]
-                    seg_pro_auc = auc(fprs_selected, pros_mean_selected)
-                    _ = pixel_pro_observer.update(100.0 * seg_pro_auc, epoch, net)
+            if TrainConfigures.calc_aupro:
+                """
+                calculate segmentation AUPRO
+                AUPRO is expensive to compute
+                from https://github.com/YoungGod/DFR
+                """
+                max_step = 1000
+                expect_fpr = 0.3  # default 30%
+                max_th = score_maps.max()
+                min_th = score_maps.min()
+                delta = (max_th - min_th) / max_step
+                ious_mean = []
+                ious_std = []
+                pros_mean = []
+                pros_std = []
+                threds = []
+                fprs = []
+                binary_score_maps = np.zeros_like(score_maps, dtype=bool)
+                for step in range(max_step):
+                    thred = max_th - step * delta
+                    # segmentation
+                    binary_score_maps[score_maps <= thred] = 0
+                    binary_score_maps[score_maps > thred] = 1
+                    pro = []  # per region overlap
+                    iou = []  # per image iou
+                    # pro: find each connected gt region, compute the overlapped pixels between the gt region and predicted region
+                    # iou: for each image, compute the ratio, i.e. intersection/union between the gt and predicted binary map
+                    for i in range(len(binary_score_maps)):  # for i th image
+                        # pro (per region level)
+                        label_map = label(gt_mask[i], connectivity=2)
+                        props = regionprops(label_map)
+                        for prop in props:
+                            x_min, y_min, x_max, y_max = prop.bbox  # find the bounding box of an anomaly region
+                            cropped_pred_label = binary_score_maps[i][x_min:x_max, y_min:y_max]
+                            # cropped_mask = gt_mask[i][x_min:x_max, y_min:y_max]   # bug!
+                            cropped_mask = prop.filled_image  # corrected!
+                            intersection = np.logical_and(cropped_pred_label, cropped_mask).astype(np.float32).sum()
+                            pro.append(intersection / prop.area)
+                        # iou (per image level)
+                        intersection = np.logical_and(binary_score_maps[i], gt_mask[i]).astype(np.float32).sum()
+                        union = np.logical_or(binary_score_maps[i], gt_mask[i]).astype(np.float32).sum()
+                        if gt_mask[i].any() > 0:  # when the gt have no anomaly pixels, skip it
+                            iou.append(intersection / union)
+                    # against steps and average metrics on the testing data
+                    ious_mean.append(np.array(iou).mean())
+                    # print("per image mean iou:", np.array(iou).mean())
+                    ious_std.append(np.array(iou).std())
+                    pros_mean.append(np.array(pro).mean())
+                    pros_std.append(np.array(pro).std())
+                    # fpr for pro-auc
+                    gt_masks_neg = ~gt_mask
+                    fpr = np.logical_and(gt_masks_neg, binary_score_maps).sum() / gt_masks_neg.sum()
+                    fprs.append(fpr)
+                    threds.append(thred)
+                    # as array
+                threds = np.array(threds)
+                pros_mean = np.array(pros_mean)
+                pros_std = np.array(pros_std)
+                fprs = np.array(fprs)
+                ious_mean = np.array(ious_mean)
+                ious_std = np.array(ious_std)
+                # best per image iou
+                best_miou = ious_mean.max()
+                # print(f"Best IOU: {best_miou:.4f}")
+                # default 30% fpr vs pro, pro_auc
+                idx = fprs <= expect_fpr  # find the indexs of fprs that is less than expect_fpr (default 0.3)
+                fprs_selected = fprs[idx]
+                fprs_selected = rescale(fprs_selected)  # rescale fpr [0,0.3] -> [0, 1]
+                pros_mean_selected = pros_mean[idx]
+                seg_pro_auc = auc(fprs_selected, pros_mean_selected)
+                _ = pixel_pro_observer.update(100.0 * seg_pro_auc, epoch, net)
 
-                # got best result
-                if best_label_roc_already and best_pixel_roc_already:
-                    board.add_graph(net, torch.randn_like(inputs, device=TrainConfigures.device))
-                    logger.info(f'class: {class_name} train done at epoch: {epoch}, \t'
-                                f'best_label_roc: {round(label_roc_observer.max_score, 2)} at epoch: {round(label_roc_observer.max_epoch, 2)}, \t'
-                                f'best_pixel_roc: {round(pixel_roc_observer.max_score, 2)} at epoch: {round(pixel_roc_observer.max_epoch, 2)}')
-                    if TrainConfigures.visualize:
-                        precision, recall, thresholds = precision_recall_curve(gt_labels, score_labels)
-                        a = 2 * precision * recall
-                        b = precision + recall
-                        f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
-                        det_threshold = thresholds[np.argmax(f1)]
-                        logger.info('Optimal {} LABEL Threshold: {:.2f}'.format(class_name, det_threshold))
-                        precision, recall, thresholds = precision_recall_curve(gt_mask.flatten(), score_maps.flatten())
-                        a = 2 * precision * recall
-                        b = precision + recall
-                        f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
-                        seg_threshold = thresholds[np.argmax(f1)]
-                        logger.info('Optimal {} PIXEL Threshold: {:.2f}'.format(class_name, seg_threshold))
-                        visualize.export_test_images(test_image_list, gt_mask, score_maps, seg_threshold, TrainConfigures.export_result_img_dir(class_name, type(TrainConfigures.dataset).__name__))
-                    break
+            # got best result
+            if best_label_roc_already and best_pixel_roc_already:
+                board.add_graph(net, torch.randn_like(inputs, device=TrainConfigures.device))
+                logger.info(f'class: {class_name} train done at epoch: {epoch}, \t'
+                            f'best_label_roc: {round(label_roc_observer.max_score, 2)} at epoch: {round(label_roc_observer.max_epoch, 2)}, \t'
+                            f'best_pixel_roc: {round(pixel_roc_observer.max_score, 2)} at epoch: {round(pixel_roc_observer.max_epoch, 2)}')
+                if TrainConfigures.visualize:
+                    precision, recall, thresholds = precision_recall_curve(gt_labels, score_labels)
+                    a = 2 * precision * recall
+                    b = precision + recall
+                    f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
+                    det_threshold = thresholds[np.argmax(f1)]
+                    logger.info('Optimal {} LABEL Threshold: {:.2f}'.format(class_name, det_threshold))
+                    precision, recall, thresholds = precision_recall_curve(gt_mask.flatten(), score_maps.flatten())
+                    a = 2 * precision * recall
+                    b = precision + recall
+                    f1 = np.divide(a, b, out=np.zeros_like(a), where=b != 0)
+                    seg_threshold = thresholds[np.argmax(f1)]
+                    logger.info('Optimal {} PIXEL Threshold: {:.2f}'.format(class_name, seg_threshold))
+                    visualize.export_test_images(test_image_list, gt_mask, score_maps, seg_threshold, TrainConfigures.export_result_img_dir(class_name, type(TrainConfigures.dataset).__name__))
+                break
 
 
 def fcdd_loss(anorm_heatmap, score_map, gtmaps, labels):
@@ -684,4 +683,5 @@ def L2_score(u, test_output):
 
 
 if __name__ == '__main__':
-    main()
+    for class_idx in range(0, len(TrainConfigures.dataset.classes)):
+        train_class(class_idx)
