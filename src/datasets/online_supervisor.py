@@ -19,7 +19,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
     invert_threshold = 0.025
 
     def __init__(self, ds: TorchvisionDataset, supervise_mode: str, noise_mode: str, oe_limit: int = np.infty,
-                 p: float = 0.7, exclude: List[str] = ()):
+                 p: float = 0.5, exclude: List[str] = ()):
         """
         This class is used as a Transform parameter for torchvision datasets.
         这个类用作torchvision数据集的Transform参数。
@@ -84,7 +84,7 @@ class OnlineSupervisor(ImgGTTargetTransform):
 
             supervise_mode = self.supervise_mode
             if random.random() < 0.9:
-                if random.random() < 0:
+                if random.random() < 0.3:
                     """
                     添加cutpaste噪声
                     """

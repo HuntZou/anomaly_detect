@@ -231,13 +231,22 @@ def gen_perlin_noise(img, img_fg):
     """
     生成柏林噪声，前景图片用来筛选噪声区域
     """
-    lattice_size = random.choices([2, 4, 8, 16, 64], k=2, weights=[1, 6, 9, 7, 1])
+    lattice_size = random.choices([2, 4, 8, 16, 64], k=2, weights=[1, 4, 9, 7, 1])
     perlin_noise = generate_perlin_noise_mask(img.shape[1:], lattice_size)
     perlin_noise = np.array(perlin_noise)
-    perlin_noise = (perlin_noise - perlin_noise.min()) * 255 / (perlin_noise.max() - perlin_noise.min())
+    perlin_noise = (perlin_noise - perlin_noise.min()) * 255 / (perlin_noise.max() - perlin_noise.min() + 1e-7)
     _, perlin_noise = cv2.threshold(np.array(perlin_noise), 210, 1, cv2.THRESH_BINARY)
+
     # 使用前景限定噪声范围
     perlin_noise = perlin_noise * img_fg
+
+    # 去除一些细小的杂点
+    contours, _ = cv2.findContours(perlin_noise.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours = list(filter(lambda c: cv2.contourArea(c) > 4, contours))
+    perlin_noise = np.zeros_like(perlin_noise)
+    perlin_noise = cv2.drawContours(perlin_noise, contours, -1, 1, -1)
+
+    # 扩展成3维
     perlin_noise = np.repeat((perlin_noise * img_fg)[np.newaxis, ...], 3, axis=0)
     # 生成噪声纹理图案
     shuffle_img = gen_shuffle_img(img, block_num=min(lattice_size), texture_radio=0.3)
